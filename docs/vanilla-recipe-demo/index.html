@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rasoi Hub - Simple Recipe Form</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="brand"><span>Rasoi</span><b>hub</b></header>
+      <section class="form-card">
+        <p class="eyebrow">HTML + CSS + JavaScript demo</p>
+        <h1>Share your recipe</h1>
+        <form id="recipe-form">
+          <label>Recipe title <input id="title" required placeholder="Aloo paratha" /></label>
+          <label>Cooking time in minutes <input id="time" required type="number" min="1" value="30" /></label>
+          <fieldset>
+            <legend>Ingredients</legend>
+            <div id="ingredients"></div>
+            <button class="text-button" id="add-ingredient" type="button">+ Add ingredient</button>
+          </fieldset>
+          <fieldset>
+            <legend>Steps</legend>
+            <div id="steps"></div>
+            <button class="text-button" id="add-step" type="button">+ Add step</button>
+          </fieldset>
+          <p class="error" id="error" role="alert"></p>
+          <button class="primary-button" type="submit">Preview recipe</button>
+        </form>
+        <output id="preview" class="preview" hidden></output>
+      </section>
+    </main>
+    <script src="script.js"></script>
+  </body>
+</html>

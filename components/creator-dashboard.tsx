@@ -1,0 +1,20 @@
+"use client";
+
+import Link from "next/link";
+import { BarChart3, BookOpen, ChevronRight, Clock3, Heart, Plus, Sparkles, Star, Upload, Users } from "lucide-react";
+import { sampleRecipes } from "@/lib/types";
+
+const statItems = [
+  { label: "Recipes published", value: "12", icon: BookOpen },
+  { label: "People reached", value: "2.4k", icon: Users },
+  { label: "Average rating", value: "4.8", icon: Star },
+  { label: "Saved by readers", value: "186", icon: Heart },
+];
+
+export function CreatorDashboard() {
+  return <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-12">
+    <div className="relative overflow-hidden rounded-[2rem] bg-[#080808] px-6 py-9 text-white sm:px-10"><div className="relative z-10 max-w-2xl"><p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[.18em] text-[#ff920d]"><Sparkles size={16} /> Creator Rasoi</p><h1 className="mt-3 font-serif text-4xl font-bold sm:text-6xl">Your kitchen.<br /><span className="text-[#ff920d]">Your signature.</span></h1><p className="mt-4 max-w-xl leading-7 text-[#bdbdbd]">A focused space to publish recipes, understand your readers, and build a collection people return to.</p><div className="mt-7 flex flex-wrap gap-3"><Link href="/creator/upload" className="inline-flex items-center gap-2 rounded-md bg-[#ff920d] px-5 py-3 text-sm font-bold text-black"><Plus size={17} /> Create recipe</Link><Link href="/my-recipes" className="inline-flex items-center gap-2 rounded-md border border-[#444] px-5 py-3 text-sm font-bold text-white">Manage recipes <ChevronRight size={17} /></Link></div></div><div className="absolute -right-20 -top-24 h-80 w-80 rounded-full border-[35px] border-[#ff920d]/20" /></div>
+    <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{statItems.map(({ label, value, icon: Icon }) => <div key={label} className="rounded-2xl border border-[#eadfd2] bg-white p-5"><div className="flex items-center justify-between text-[#c8501e]"><Icon size={19} /><BarChart3 size={15} className="text-[#b8a496]" /></div><strong className="mt-4 block font-serif text-3xl text-[#39241b]">{value}</strong><span className="text-sm text-[#927b6d]">{label}</span></div>)}</div>
+    <div className="mt-10 grid gap-7 lg:grid-cols-[1.2fr_.8fr]"><section><div className="mb-4 flex items-end justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#c8501e]">Your shelf</p><h2 className="mt-1 font-serif text-3xl font-bold text-[#39241b]">Latest recipes</h2></div><Link href="/my-recipes" className="text-sm font-bold text-[#c8501e]">View all</Link></div><div className="divide-y divide-[#eadfd2] overflow-hidden rounded-2xl border border-[#eadfd2] bg-white">{sampleRecipes.slice(0, 3).map((recipe) => <div key={recipe.id} className="flex items-center gap-4 p-4"><img src={recipe.image_url} alt="" className="h-16 w-16 rounded-xl object-cover" /><div className="min-w-0 flex-1"><h3 className="truncate font-serif text-lg font-bold text-[#39241b]">{recipe.title}</h3><p className="mt-1 flex items-center gap-3 text-xs text-[#927b6d]"><span className="flex items-center gap-1"><Star size={12} fill="currentColor" className="text-[#bc7415]" /> {recipe.rating}</span><span className="flex items-center gap-1"><Clock3 size={12} /> {recipe.cooking_time} min</span></p></div><button aria-label={`Edit ${recipe.title}`} className="rounded-full p-2 text-[#927b6d] hover:bg-[#fff0e8] hover:text-[#c8501e]">•••</button></div>)}</div></section><aside className="rounded-2xl border border-[#eadfd2] bg-[#fff4df] p-6"><div className="grid h-10 w-10 place-items-center rounded-xl bg-[#ff920d] text-black"><Sparkles size={19} /></div><h2 className="mt-5 font-serif text-2xl font-bold text-[#39241b]">Make your next recipe stand out</h2><p className="mt-2 text-sm leading-6 text-[#765f51]">Add a clear hero photo, tell the story behind the dish, and write one action per step. Readers cook with confidence when details are easy to scan.</p><Link href="/creator/upload" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#b96100]">Open publishing studio <Upload size={16} /></Link></aside></div>
+  </main>;
+}

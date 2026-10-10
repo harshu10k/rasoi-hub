@@ -1,0 +1,5 @@
+import { notFound } from "next/navigation"; import { Header } from "@/components/header"; import { RecipeDetail } from "@/components/recipe-detail"; import { sampleRecipes } from "@/lib/types";
+export const instant = false;
+export function generateStaticParams() { return sampleRecipes.map((recipe) => ({ id: recipe.id })); }
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const recipe = sampleRecipes.find((item) => item.id === id); return { title: recipe ? `${recipe.title} | Rasoi Hub` : "Recipe | Rasoi Hub", openGraph: recipe ? { title: recipe.title, images: [recipe.image_url], description: recipe.description } : undefined }; }
+export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const recipe = sampleRecipes.find((item) => item.id === id); if (!recipe) notFound(); return <><Header /><RecipeDetail recipe={recipe} /></>; }

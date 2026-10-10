@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rasoi Hub
 
-## Getting Started
+Rasoi Hub is a recipe-only sharing app built with Next.js App Router, TypeScript, Tailwind CSS, Supabase Auth/Postgres/Storage, and Zod. It has no ordering, payments, restaurants, carts, or delivery features.
 
-First, run the development server:
+## Run locally
+
+1. Create a Supabase project at [supabase.com](https://supabase.com).
+2. Open the SQL Editor and run `supabase/schema.sql`.
+3. Create a user in the Supabase dashboard, then optionally run `supabase/seed.sql` to add eight sample Indian recipes.
+4. Copy `.env.example` to `.env.local` and fill in the project URL and anon key from Supabase project settings.
+5. Install and run:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Routes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `/` browse, search, category and diet filters
+- `/recipe/[id]` recipe detail, rating, save, share and comment controls
+- `/signup` and `/login` email/password auth
+- `/upload` validated recipe upload with client-side image resizing
+- `/my-recipes`, `/saved`, `/profile`
 
-## Learn More
+For a beginner-friendly plain HTML/CSS/JavaScript version of the dynamic recipe form, see `docs/vanilla-recipe-demo/index.html` and `docs/BEGINNER-GUIDE.md`.
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy to Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Import the repository into Vercel, add the two `NEXT_PUBLIC_SUPABASE_*` environment variables, and deploy. The public `recipe-images` bucket and RLS policies are created by `schema.sql`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Feature checklist
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [ ] Sign up, confirm email, log in, persist session, log out
+- [ ] Create a recipe with dynamic ingredients and steps, image, diet, time and servings
+- [ ] Edit/delete only recipes owned by the signed-in user
+- [ ] Search title, ingredient, category and author; filter diet/time; sort and paginate
+- [ ] Open a recipe, rate once/change rating, save/unsave and share
+- [ ] Add and delete owned comments
+- [ ] Confirm favourites and personal stats on the saved/profile pages
+- [ ] Test mobile layout, keyboard focus, empty states and invalid form values
