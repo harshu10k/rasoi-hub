@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
   const { data: auth } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
   const creatorRoute = pathname === "/creator" || pathname.startsWith("/creator/") && !pathname.startsWith("/creator/login") && !pathname.startsWith("/creator/signup");
-  const protectedRoute = creatorRoute || pathname === "/profile" || pathname === "/my-recipes" || pathname === "/saved";
+  const protectedRoute = pathname === "/" || pathname.startsWith("/recipe/") || creatorRoute || pathname === "/profile" || pathname === "/my-recipes" || pathname === "/saved";
   if (!protectedRoute) return response;
   if (!auth.user) {
     const loginPath = creatorRoute ? "/creator/login" : "/login";
