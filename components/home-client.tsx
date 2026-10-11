@@ -36,7 +36,7 @@ export function HomeClient() {
             <p className="mb-5 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-[#f3b85b]"><ChefHat size={18} /> A community kitchen</p>
             <h1 className="font-serif text-5xl font-bold leading-[.95] tracking-tight sm:text-7xl">Ghar ki recipes,<br /><i className="font-normal text-[#f3b85b]">dil se.</i></h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-[#f6ded0]">Discover the recipes that make ordinary days feel special. Cook, share, and keep your family favourites close.</p>
-            <Link href="/creator/signup" className="mt-8 inline-flex items-center gap-2 rounded-full bg-[#f3b85b] px-6 py-3 text-sm font-bold text-[#4d241b] hover:bg-white">Share your recipe <ArrowRight size={17} /></Link>
+            <Link href="/upload" className="mt-8 inline-flex items-center gap-2 rounded-full bg-[#f3b85b] px-6 py-3 text-sm font-bold text-[#4d241b] hover:bg-white">Share your recipe <ArrowRight size={17} /></Link>
           </div>
           <div className="absolute -right-16 -top-28 h-[34rem] w-[34rem] rounded-full border-[42px] border-[#c8501e]/40" />
           <div className="absolute -right-4 -bottom-32 h-72 w-72 overflow-hidden rounded-full border-8 border-[#f3b85b]/30"><img src={sampleRecipes[0].image_url} alt="Butter chicken" className="h-full w-full object-cover opacity-80" /></div>

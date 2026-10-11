@@ -1,7 +1,7 @@
 create extension if not exists "pgcrypto";
 
-create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, full_name text not null default 'Rasoi friend', account_type text not null default 'reader' check (account_type in ('reader', 'creator')), avatar_url text, created_at timestamptz not null default now());
-alter table public.profiles add column if not exists account_type text not null default 'reader';
+create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, full_name text not null default 'Rasoi friend', avatar_url text, created_at timestamptz not null default now());
+alter table public.profiles drop column if exists account_type;
 create table public.recipes (
   id uuid primary key default gen_random_uuid(), author_id uuid not null references public.profiles(id) on delete cascade,
   title text not null check (char_length(title) between 3 and 120), category text not null check (category in ('Breakfast','Sabzi','Dal & Rice','Roti & Paratha','Snacks','Non-Veg','Sweets','Drinks')),
