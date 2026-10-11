@@ -31,7 +31,7 @@ export function AuthForm({ mode, accountType = "reader" }: { mode: "login" | "si
     setLoading(false);
     if (result.error) { setError(result.error.message); return; }
     if (mode === "signup") setMessage(`Your ${creator ? "creator" : "reader"} account is ready. Check your email to confirm your address.`);
-    else router.push(creator ? "/creator" : "/");
+    else router.push(new URLSearchParams(window.location.search).get("next") || (creator ? "/creator" : "/"));
   }
 
   async function socialLogin(provider: "google" | "github") {
