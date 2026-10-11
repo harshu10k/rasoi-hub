@@ -18,20 +18,22 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .icon-button { display: grid; place-items: center; border-radius: 999px; border: 1px solid #eadfd2; padding: .55rem; color: #765f51; }
 .step-kicker { color: #c8501e; font-size: .72rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
 .auth-stage { display: grid; min-height: calc(100vh - 72px); grid-template-columns: minmax(0, 1.05fr) minmax(420px, .95fr); background: #fff8ef; }
-.crystal-panel { position: relative; min-height: 720px; overflow: hidden; background: radial-gradient(circle at 54% 38%, #7d42bc 0, #3a165d 27%, #10061d 64%, #050505 100%); padding: clamp(2rem, 6vw, 5rem); }
-.crystal-noise { position: absolute; inset: 0; opacity: .16; background-image: radial-gradient(#fff 0.7px, transparent .7px); background-size: 13px 13px; mask-image: linear-gradient(to bottom, #000, transparent 80%); }
-.crystal-orbit { position: absolute; left: 42%; top: 34%; border: 1px solid rgb(221 189 255 / .26); border-radius: 50%; transform: rotate(-26deg); animation: crystal-spin 18s linear infinite; }
+.crystal-panel { position: relative; min-height: 720px; overflow: hidden; background: radial-gradient(circle at 54% 38%, #9c4d08 0, #4a1b08 25%, #130b08 61%, #050505 100%); padding: clamp(2rem, 6vw, 5rem); }
+.crystal-noise { position: absolute; inset: 0; opacity: .13; background-image: radial-gradient(#ffbd62 0.7px, transparent .7px); background-size: 13px 13px; mask-image: linear-gradient(to bottom, #000, transparent 80%); }
+.crystal-orbit { position: absolute; left: 42%; top: 34%; border: 1px solid rgb(255 173 76 / .32); border-radius: 50%; transform: rotate(-26deg); animation: crystal-spin 18s linear infinite; }
 .crystal-orbit-one { height: 26rem; width: 13rem; }
 .crystal-orbit-two { height: 16rem; width: 31rem; transform: rotate(42deg); animation-direction: reverse; animation-duration: 24s; }
 .crystal-shard { position: absolute; clip-path: polygon(50% 0, 100% 29%, 76% 100%, 27% 82%, 0 31%); filter: drop-shadow(0 25px 34px rgb(0 0 0 / .42)); transform-origin: center; animation: crystal-float 7s ease-in-out infinite; }
 .crystal-shard::after { content: ""; position: absolute; inset: 0; clip-path: polygon(50% 0, 57% 100%, 100% 29%); background: rgb(255 255 255 / .24); }
-.crystal-shard-one { left: 42%; top: 22%; height: 18rem; width: 11rem; background: linear-gradient(145deg, #f1dfff, #aa64dd 37%, #4c1683 70%, #1b0730); }
-.crystal-shard-two { left: 59%; top: 34%; height: 13rem; width: 8rem; background: linear-gradient(145deg, #fff0df, #ffab47 32%, #9a35ca 72%, #350b5d); animation-delay: -2s; transform: rotate(25deg) scale(.82); }
-.crystal-shard-three { left: 28%; top: 42%; height: 11rem; width: 7rem; background: linear-gradient(145deg, #d2f7ff, #6d9fff 40%, #6435b6 70%, #17052b); animation-delay: -4s; transform: rotate(-22deg) scale(.68); }
+.crystal-shard-one { left: 42%; top: 22%; height: 18rem; width: 11rem; background: linear-gradient(145deg, #fff3d7, #ffbd62 34%, #d7640a 67%, #3c1106); }
+.crystal-shard-two { left: 59%; top: 34%; height: 13rem; width: 8rem; background: linear-gradient(145deg, #fff8eb, #ff9c27 32%, #b53b08 72%, #280b05); animation-delay: -2s; transform: rotate(25deg) scale(.82); }
+.crystal-shard-three { left: 28%; top: 42%; height: 11rem; width: 7rem; background: linear-gradient(145deg, #fff, #ffd995 40%, #e8841d 70%, #321007); animation-delay: -4s; transform: rotate(-22deg) scale(.68); }
 .crystal-glass { position: absolute; border: 1px solid rgb(255 255 255 / .23); background: linear-gradient(135deg, rgb(255 255 255 / .14), rgb(255 255 255 / .02)); box-shadow: inset 0 1px rgb(255 255 255 / .22), 0 20px 60px rgb(0 0 0 / .2); backdrop-filter: blur(10px); }
 .crystal-glass-one { right: 9%; top: 18%; height: 4rem; width: 8rem; border-radius: 16px; transform: rotate(12deg); animation: crystal-float 8s ease-in-out infinite -3s; }
 .crystal-glass-two { left: 10%; bottom: 20%; height: 3rem; width: 6rem; border-radius: 12px; transform: rotate(-17deg); animation: crystal-float 9s ease-in-out infinite -5s; }
-.crystal-gradient-text { background: linear-gradient(100deg, #fff, #f0cfff 42%, #ffab43); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.crystal-gradient-text { background: linear-gradient(100deg, #fff, #ffdca3 42%, #ff920d); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.auth-brand { display: flex; width: fit-content; align-items: center; gap: .3rem; font-family: Arial, sans-serif; font-size: 2.7rem; font-weight: 950; letter-spacing: -.12em; line-height: .9; color: #fff; }
+.auth-brand b { border-radius: .42rem; background: #ff920d; padding: .18rem .48rem .22rem; color: #050505; font-weight: 950; letter-spacing: -.12em; }
 .auth-form-panel { display: flex; width: min(100%, 560px); flex-direction: column; justify-content: center; padding: clamp(2rem, 6vw, 5rem); }
 @keyframes crystal-float { 0%, 100% { margin-top: 0; } 50% { margin-top: -15px; } }
 @keyframes crystal-spin { from { transform: rotate(-26deg); } to { transform: rotate(334deg); } }
