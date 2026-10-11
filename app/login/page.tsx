@@ -1,2 +1,3 @@
-import { Header } from "@/components/header"; import { AuthForm } from "@/components/auth-form";
-export default function LoginPage() { return <><Header /><main className="mx-auto grid min-h-[calc(100vh-72px)] max-w-md content-center px-5 py-12"><div className="rounded-3xl border border-[#eadfd2] bg-white p-7 shadow-xl shadow-[#5b361f]/5"><p className="mb-2 text-sm font-bold uppercase tracking-[.18em] text-[#c8501e]">Welcome back</p><h1 className="mb-7 font-serif text-4xl font-bold text-[#39241b]">Come on in.</h1><AuthForm mode="login" /></div></main></>; }
+import { AuthStage } from "@/components/auth-stage";
+
+export default function LoginPage() { return <AuthStage mode="login" />; }
