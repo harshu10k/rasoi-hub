@@ -6,8 +6,11 @@ export const metadata: Metadata = {
   description: "Discover, share and save the recipes that make home feel like home.",
 };
 
+// Applies the saved theme before first paint so dark mode doesn't flash light on load.
+const themeScript = `(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t}catch(e){}})()`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased"><body className="min-h-full">{children}</body></html>
+    <html lang="en" data-theme="light" suppressHydrationWarning className="h-full antialiased"><head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head><body className="min-h-full">{children}</body></html>
   );
 }

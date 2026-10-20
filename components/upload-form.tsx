@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/client";
-import { categories } from "@/lib/types";
+import { categories, type Recipe } from "@/lib/types";
+import { setupMessage } from "@/lib/recipes";
 
 function resizeImage(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -25,17 +26,20 @@ function resizeImage(file: File): Promise<Blob> {
   });
 }
 
-export function UploadForm() {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState(categories[0]);
-  const [veg, setVeg] = useState(true);
-  const [hostelFriendly, setHostelFriendly] = useState(false);
-  const [time, setTime] = useState("30");
-  const [servings, setServings] = useState("2");
-  const [ingredients, setIngredients] = useState([""]);
-  const [steps, setSteps] = useState([""]);
+/** Creates a recipe, or edits `recipe` when given (only its author reaches the edit page). */
+export function UploadForm({ recipe }: { recipe?: Recipe }) {
+  const [title, setTitle] = useState(recipe?.title ?? "");
+  const [description, setDescription] = useState(recipe?.description ?? "");
+  const [category, setCategory] = useState(recipe?.category ?? categories[0]);
+  const [veg, setVeg] = useState(recipe?.is_veg ?? true);
+  const [hostelFriendly, setHostelFriendly] = useState(recipe?.is_hostel_friendly ?? false);
+  const [time, setTime] = useState(String(recipe?.cooking_time ?? 30));
+  const [servings, setServings] = useState(String(recipe?.servings ?? 2));
+  const [ingredients, setIngredients] = useState(recipe?.ingredients.length ? recipe.ingredients : [""]);
+  const [steps, setSteps] = useState(recipe?.steps.length ? recipe.steps : [""]);
   const [file, setFile] = useState<File>();
+  const [preview, setPreview] = useState(recipe?.image_url ?? "");
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -43,6 +47,7 @@ export function UploadForm() {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
+    if (title.trim().length < 3) { setError("Give your recipe a title of at least 3 characters."); return; }
     if (!title.trim() || ingredients.some((item) => !item.trim()) || steps.some((item) => !item.trim()) || Number(time) < 1 || Number(servings) < 1) {
       setError("Fill every field before sharing your recipe.");
       return;
@@ -56,23 +61,27 @@ export function UploadForm() {
       const supabase = createClient();
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) { router.push("/login"); return; }
-      let imageUrl = "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=85";
+      let imageUrl = recipe?.image_url ?? "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=85";
       if (file) {
         if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024) throw new Error("Choose an image under 10 MB.");
         const blob = await resizeImage(file);
         const path = `${auth.user.id}/${crypto.randomUUID()}.jpg`;
         const upload = await supabase.storage.from("recipe-images").upload(path, blob, { contentType: "image/jpeg", upsert: false });
-        if (upload.error) throw new Error(upload.error.message);
+        if (upload.error) throw new Error(/bucket not found/i.test(upload.error.message) ? setupMessage : upload.error.message);
         imageUrl = supabase.storage.from("recipe-images").getPublicUrl(path).data.publicUrl;
       }
-      const { error: insertError } = await supabase.from("recipes").insert({
+      const fields = {
         title: title.trim(), description: description.trim() || null, category, is_veg: veg, is_hostel_friendly: hostelFriendly,
         cooking_time: Number(time), servings: Number(servings),
         ingredients: ingredients.map((item) => item.trim()).filter(Boolean),
-        steps: steps.map((item) => item.trim()).filter(Boolean), image_url: imageUrl, author_id: auth.user.id,
-      });
-      if (insertError) throw new Error(insertError.message);
-      router.push("/my-recipes");
+        steps: steps.map((item) => item.trim()).filter(Boolean), image_url: imageUrl,
+      };
+      const { data: saved, error: saveError } = recipe
+        ? await supabase.from("recipes").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", recipe.id).eq("author_id", auth.user.id).select("id").maybeSingle()
+        : await supabase.from("recipes").insert({ ...fields, author_id: auth.user.id }).select("id").single();
+      if (saveError) throw new Error(saveError.code === "PGRST205" || saveError.code === "23503" ? setupMessage : saveError.message);
+      if (!saved) throw new Error("You can only edit recipes you shared.");
+      router.push(`/recipe/${saved.id}?notice=${recipe ? "updated" : "published"}`); router.refresh();
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "Something went wrong. Please try again.");
     } finally { setLoading(false); }
@@ -93,12 +102,13 @@ export function UploadForm() {
     </div>
     <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-[#eadfd2] bg-[#fffaf4] p-3 text-sm font-bold text-[#765f51]"><input type="checkbox" checked={hostelFriendly} onChange={(event) => setHostelFriendly(event.target.checked)} className="h-4 w-4 accent-[#ff920d]" /> Hostel students ke liye suitable recipe</label>
     <div><p className="step-kicker">03 · The visual</p><h2 className="mt-1 font-serif text-2xl font-bold text-[#39241b]">Show the finished dish</h2></div>
-    <label className="grid gap-2 text-sm font-bold text-[#765f51]">Photo<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0])} className="field file:mr-3 file:rounded-lg file:border-0 file:bg-[#fff0e8] file:px-3 file:py-2 file:font-bold file:text-[#c8501e]" /></label>
+    <label className="grid gap-2 text-sm font-bold text-[#765f51]">Photo<input key={fileInputKey} type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const chosen = event.target.files?.[0]; setFile(chosen); if (chosen) setPreview(URL.createObjectURL(chosen)); }} className="field file:mr-3 file:rounded-lg file:border-0 file:bg-[#fff0e8] file:px-3 file:py-2 file:font-bold file:text-[#c8501e]" /><span className="text-xs font-normal text-[#a99587]">JPG, PNG or WebP, up to 10 MB. {recipe ? "Leave empty to keep the current photo." : "Skip it and we'll use a default photo."}</span></label>
+    {preview && <div className="relative overflow-hidden rounded-2xl border border-[#eadfd2]"><img src={preview} alt="Recipe photo preview" className="aspect-[16/9] w-full object-cover" />{file && <button type="button" onClick={() => { setFile(undefined); setPreview(recipe?.image_url ?? ""); setFileInputKey((key) => key + 1); }} className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-[#b33f20]">Remove photo</button>}</div>}
     <div><p className="step-kicker">04 · The recipe card</p><h2 className="mt-1 font-serif text-2xl font-bold text-[#39241b]">Build it line by line</h2><p className="mt-1 text-sm text-[#927b6d]">One ingredient or action per row keeps the final recipe easy to follow.</p></div>
     <ListEditor label="Ingredients" values={ingredients} setValues={setIngredients} placeholder="2 cups basmati rice" />
     <ListEditor label="Steps" values={steps} setValues={setSteps} placeholder="Toast the spices until fragrant" />
     {error && <p role="alert" className="rounded-xl bg-[#fff0e8] px-4 py-3 text-sm text-[#b33f20]">{error}</p>}
-    <button disabled={loading} className="rounded-xl bg-[#c8501e] px-5 py-3 font-bold text-white disabled:opacity-60">{loading ? "Sharing your recipe..." : "Share recipe"}</button>
+    <button disabled={loading} className="rounded-xl bg-[#c8501e] px-5 py-3 font-bold text-white disabled:opacity-60">{loading ? (recipe ? "Saving changes..." : "Sharing your recipe...") : (recipe ? "Save changes" : "Share recipe")}</button>
   </form>;
 }
 

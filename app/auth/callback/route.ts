@@ -18,7 +18,21 @@ export async function GET(request: Request) {
   if (!code) return fail("Sign-in link is missing its code. Please try again.");
   const supabase = await createClient();
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error || !data.user) return fail(error?.message || "Could not complete sign-in. Please try again.");
-  await supabase.from("profiles").update({ full_name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || "Rasoi friend" }).eq("id", data.user.id);
+  if (error || !data.user) {
+    // Supabase verifies the email before redirecting here, so a failed exchange usually means the link was opened in
+    // another browser (no PKCE verifier cookie): the account is confirmed, the user just needs to log in.
+    // A password-reset link needs that session though, so ask for a fresh link instead.
+    if (next === "/reset-password") {
+      const forgotUrl = new URL("/forgot-password", url.origin);
+      forgotUrl.searchParams.set("error", "That reset link has expired or was opened in a different browser. Request a new one below.");
+      return NextResponse.redirect(forgotUrl);
+    }
+    const loginUrl = new URL("/login", url.origin);
+    loginUrl.searchParams.set("notice", "Your email is confirmed. Log in with your email and password.");
+    if (next !== "/") loginUrl.searchParams.set("next", next);
+    return NextResponse.redirect(loginUrl);
+  }
+  // Creates the profile if the signup trigger has not; never overwrites a name the user has since changed.
+  await supabase.from("profiles").upsert({ id: data.user.id, full_name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || "Rasoi friend" }, { onConflict: "id", ignoreDuplicates: true });
   return NextResponse.redirect(new URL(next, url.origin));
 }

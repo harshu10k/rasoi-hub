@@ -39,3 +39,27 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @keyframes crystal-spin { from { transform: rotate(-26deg); } to { transform: rotate(334deg); } }
 @media (prefers-reduced-motion: reduce) { .crystal-shard, .crystal-glass, .crystal-orbit { animation: none; } }
 @media (max-width: 850px) { .auth-stage { display: block; } .crystal-panel { min-height: 390px; padding: 2rem 1.5rem; } .crystal-panel > .relative { min-height: 330px; } .crystal-shard-one { left: 53%; top: 28%; height: 11rem; width: 7rem; } .crystal-shard-two { left: 72%; top: 38%; height: 8rem; width: 5rem; } .crystal-shard-three { left: 32%; top: 48%; height: 7rem; width: 4rem; } .crystal-orbit { left: 49%; top: 29%; } .auth-form-panel { width: 100%; max-width: 620px; margin: auto; padding: 2.5rem 1.5rem 4rem; } }
+
+/* Dark theme: remaps the warm light palette used across the app. Toggled via data-theme on <html> (see components/theme-toggle.tsx). */
+[data-theme="dark"] { --background: #120d0a; --foreground: #f6e9dc; color-scheme: dark; }
+[data-theme="dark"] .auth-stage { background: var(--background); }
+[data-theme="dark"] .bg-white { background-color: #1e1712; }
+[data-theme="dark"] .bg-white\/90 { background-color: rgb(30 23 18 / .9); }
+[data-theme="dark"] .bg-\[\#fff0e8\] { background-color: #3a2218; }
+[data-theme="dark"] .bg-\[\#fff4df\] { background-color: #2e2112; }
+[data-theme="dark"] .bg-\[\#f3e6d6\] { background-color: #2c221c; }
+[data-theme="dark"] .bg-\[\#fffaf4\] { background-color: #231a15; }
+[data-theme="dark"] .bg-\[\#edf8ee\] { background-color: #16301f; }
+[data-theme="dark"] .bg-\[\#39241b\] { background-color: #c8501e; }
+[data-theme="dark"] .bg-\[\#eadfd2\] { background-color: #3a2e26; }
+[data-theme="dark"] .text-\[\#39241b\] { color: #f6e9dc; }
+[data-theme="dark"] .text-\[\#765f51\] { color: #d4bfae; }
+[data-theme="dark"] .text-\[\#927b6d\], [data-theme="dark"] .text-\[\#aa9a8e\] { color: #b39d8d; }
+[data-theme="dark"] .text-\[\#a99587\], [data-theme="dark"] .text-\[\#b8a496\] { color: #9a8576; }
+[data-theme="dark"] .text-\[\#c8501e\] { color: #ff8a4c; }
+[data-theme="dark"] .text-\[\#b33f20\] { color: #ff9573; }
+[data-theme="dark"] .text-\[\#2f7b4e\] { color: #7fd9a0; }
+[data-theme="dark"] .border-\[\#eadfd2\], [data-theme="dark"] .border-\[\#d8c5b4\] { border-color: #3a2e26; }
+[data-theme="dark"] .ring-\[\#eadfd2\] { --tw-ring-color: #3a2e26; }
+[data-theme="dark"] .field { border-color: #3a2e26; background: #1a1410; color: #f6e9dc; }
+[data-theme="dark"] .icon-button { border-color: #3a2e26; color: #d4bfae; }

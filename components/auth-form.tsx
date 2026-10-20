@@ -3,18 +3,71 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/client";
 import { safeNextPath } from "@/lib/safe-path";
 
+const nextPath = () => safeNextPath(new URLSearchParams(window.location.search).get("next"));
+// Email links land on /auth/callback, which signs the user in and sends them back to where they were going.
+const callbackUrl = () => `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath())}`;
+
+/** Turns Supabase's auth errors into messages a first-time user can act on. */
+function friendlyError(message: string) {
+  if (/invalid login credentials/i.test(message)) return "Email or password is incorrect. Please check and try again.";
+  if (/email not confirmed/i.test(message)) return "Please confirm your email first. Open the link we sent to your inbox.";
+  if (/already registered|already exists/i.test(message)) return "An account with this email already exists. Log in instead.";
+  if (/rate limit|too many/i.test(message)) return "Too many attempts. Please wait a minute and try again.";
+  return message;
+}
+
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
-  const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [name, setName] = useState(""); const [error, setError] = useState(""); const [message, setMessage] = useState(""); const [loading, setLoading] = useState(false); const router = useRouter();
-  // Error passed back from /auth/callback (e.g. the user cancelled Google sign-in). Hidden once they try again.
+  const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [confirm, setConfirm] = useState(""); const [name, setName] = useState(""); const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState(""); const [message, setMessage] = useState(""); const [loading, setLoading] = useState(false); const [canResend, setCanResend] = useState(false);
+  const router = useRouter();
+  // Error or notice passed back from /auth/callback (e.g. the user cancelled Google sign-in). Hidden once they try again.
   const callbackError = useSyncExternalStore(noopSubscribe, () => new URLSearchParams(window.location.search).get("error"), () => null);
-  const [callbackErrorDismissed, setCallbackErrorDismissed] = useState(false);
-  const shownError = error || (callbackErrorDismissed ? "" : callbackError || "");
-  async function submit(event: React.FormEvent) { event.preventDefault(); setCallbackErrorDismissed(true); setError(""); setMessage(""); if (!hasSupabaseEnv) { setError("Add Supabase keys to .env.local to enable authentication."); return; } setLoading(true); const supabase = createClient(); const result = mode === "login" ? await supabase.auth.signInWithPassword({ email, password }) : await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } }); setLoading(false); if (result.error) { setError(result.error.message); return; } if (mode === "signup") setMessage("Your Rasoi account is ready. Check your email to confirm your address."); else router.push(safeNextPath(new URLSearchParams(window.location.search).get("next"))); }
+  const callbackNotice = useSyncExternalStore(noopSubscribe, () => new URLSearchParams(window.location.search).get("notice"), () => null);
+  const [callbackDismissed, setCallbackDismissed] = useState(false);
+  const shownError = error || (callbackDismissed ? "" : callbackError || "");
+  const shownMessage = message || (callbackDismissed ? "" : callbackNotice || "");
+
+  function reset() { setCallbackDismissed(true); setError(""); setMessage(""); setCanResend(false); }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); reset();
+    if (!hasSupabaseEnv) { setError("Add Supabase keys to .env.local to enable authentication."); return; }
+    const cleanEmail = email.trim().toLowerCase();
+    if (mode === "signup") {
+      if (name.trim().length < 2) { setError("Please enter your name."); return; }
+      if (password !== confirm) { setError("Passwords don't match."); return; }
+    }
+    setLoading(true);
+    const supabase = createClient();
+    if (mode === "login") {
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+      setLoading(false);
+      if (loginError) { setError(friendlyError(loginError.message)); setCanResend(/email not confirmed/i.test(loginError.message)); return; }
+      router.push(nextPath()); router.refresh(); return;
+    }
+    const { data, error: signupError } = await supabase.auth.signUp({ email: cleanEmail, password, options: { data: { full_name: name.trim() }, emailRedirectTo: callbackUrl() } });
+    setLoading(false);
+    if (signupError) { setError(friendlyError(signupError.message)); return; }
+    // With email confirmation off, Supabase signs the user in straight away.
+    if (data.session) { router.push(nextPath()); router.refresh(); return; }
+    // With confirmation on, an already-registered email comes back as a user with no identities instead of an error.
+    if (!data.user?.identities?.length) { setError("An account with this email already exists. Log in instead."); return; }
+    setMessage(`Account created for ${cleanEmail}. We've sent you a confirmation link. Click it, and you'll be logged in.`); setCanResend(true);
+  }
+
+  async function resend() {
+    setLoading(true);
+    const { error: resendError } = await createClient().auth.resend({ type: "signup", email: email.trim().toLowerCase(), options: { emailRedirectTo: callbackUrl() } });
+    setLoading(false);
+    if (resendError) setError(friendlyError(resendError.message)); else { setError(""); setMessage("Confirmation email sent again. Check your inbox (and spam folder)."); }
+  }
+
   async function googleLogin() {
-    setCallbackErrorDismissed(true); setError(""); setMessage("");
+    reset();
     if (!hasSupabaseEnv) { setError("Add Supabase keys to .env.local to enable authentication."); return; }
     setLoading(true);
     try {
@@ -23,11 +76,12 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       if (!settings?.external?.google) { setLoading(false); setError("Google sign-in is not enabled yet. Please use email for now."); return; }
     } catch { /* If the check fails, let Supabase handle the redirect and report any error. */ }
     const supabase = createClient();
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNextPath(new URLSearchParams(window.location.search).get("next")))}`;
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo, queryParams: { prompt: "select_account" } } });
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl(), queryParams: { prompt: "select_account" } } });
     if (oauthError) { setLoading(false); setError(oauthError.message); }
   }
-  return <form onSubmit={submit} className="grid gap-4">{mode === "signup" && <label className="grid gap-2 text-sm font-bold text-[#765f51]">Your name<input required value={name} onChange={(event) => setName(event.target.value)} className="field" placeholder="Asha Verma" /></label>}<button type="button" onClick={googleLogin} disabled={loading} className="flex items-center justify-center gap-3 rounded-xl border border-[#eadfd2] bg-white px-4 py-3 text-sm font-bold text-[#39241b] hover:border-[#ff920d] disabled:opacity-60"><GoogleIcon /> Continue with Google</button><div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-[#b8a496]"><span className="h-px flex-1 bg-[#eadfd2]" />or use email<span className="h-px flex-1 bg-[#eadfd2]" /></div><label className="grid gap-2 text-sm font-bold text-[#765f51]">Email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="field" placeholder="you@example.com" /></label><label className="grid gap-2 text-sm font-bold text-[#765f51]">Password<input required minLength={6} type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="field" placeholder="At least 6 characters" /></label>{shownError && <p role="alert" className="rounded-xl bg-[#fff0e8] px-4 py-3 text-sm text-[#b33f20]">{shownError}</p>}{message && <p className="rounded-xl bg-[#edf8ee] px-4 py-3 text-sm text-[#2f7b4e]">{message}</p>}<button disabled={loading} className="rounded-xl bg-[#ff920d] px-5 py-3 font-bold text-black disabled:opacity-60">{loading ? "Please wait..." : mode === "login" ? "Log in to Rasoi Hub" : "Create your account"}</button><p className="text-center text-sm text-[#927b6d]">{mode === "login" ? "New here? " : "Already have an account? "}<Link className="font-bold text-[#c8501e]" href={mode === "login" ? "/signup" : "/login"}>{mode === "login" ? "Create an account" : "Log in"}</Link></p></form>;
+
+  const passwordType = showPassword ? "text" : "password";
+  return <form onSubmit={submit} className="grid gap-4">{mode === "signup" && <label className="grid gap-2 text-sm font-bold text-[#765f51]">Your name<input required autoComplete="name" maxLength={60} value={name} onChange={(event) => setName(event.target.value)} className="field" placeholder="Asha Verma" /></label>}<button type="button" onClick={googleLogin} disabled={loading} className="flex items-center justify-center gap-3 rounded-xl border border-[#eadfd2] bg-white px-4 py-3 text-sm font-bold text-[#39241b] hover:border-[#ff920d] disabled:opacity-60"><GoogleIcon /> Continue with Google</button><div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-[#b8a496]"><span className="h-px flex-1 bg-[#eadfd2]" />or use email<span className="h-px flex-1 bg-[#eadfd2]" /></div><label className="grid gap-2 text-sm font-bold text-[#765f51]">Email<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="field" placeholder="you@example.com" /></label><label className="grid gap-2 text-sm font-bold text-[#765f51]"><span className="flex items-center justify-between">Password{mode === "login" && <Link href="/forgot-password" className="text-xs font-bold text-[#c8501e]">Forgot password?</Link>}</span><span className="relative grid"><input required minLength={6} type={passwordType} autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} className="field pr-11" placeholder="At least 6 characters" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((shown) => !shown)} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#a99587] hover:text-[#c8501e]">{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>{mode === "signup" && <label className="grid gap-2 text-sm font-bold text-[#765f51]">Confirm password<input required minLength={6} type={passwordType} autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} className="field" placeholder="Type it again" /></label>}{shownError && <p role="alert" className="rounded-xl bg-[#fff0e8] px-4 py-3 text-sm text-[#b33f20]">{shownError}{/already exists/i.test(shownError) && <> <Link href={`/login?next=${encodeURIComponent(nextPath())}`} className="font-bold underline">Log in</Link></>}</p>}{shownMessage && <p role="status" className="rounded-xl bg-[#edf8ee] px-4 py-3 text-sm text-[#2f7b4e]">{shownMessage}</p>}{canResend && <button type="button" onClick={resend} disabled={loading || !email} className="w-fit text-sm font-bold text-[#c8501e] disabled:opacity-60">Resend confirmation email</button>}<button disabled={loading} className="rounded-xl bg-[#ff920d] px-5 py-3 font-bold text-black disabled:opacity-60">{loading ? "Please wait..." : mode === "login" ? "Log in to Rasoi Hub" : "Create your account"}</button><p className="text-center text-sm text-[#927b6d]">{mode === "login" ? "New here? " : "Already have an account? "}<Link className="font-bold text-[#c8501e]" href={mode === "login" ? "/signup" : "/login"}>{mode === "login" ? "Create an account" : "Log in"}</Link></p></form>;
 }
 
 const noopSubscribe = () => () => {};
