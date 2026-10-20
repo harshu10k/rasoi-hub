@@ -19,6 +19,8 @@ create index if not exists recipes_category_idx on public.recipes(category); cre
 -- Every auth user needs a profile row: favourites, ratings, comments and recipes all reference it.
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$ begin insert into public.profiles (id, full_name) values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name', 'Rasoi friend')) on conflict (id) do nothing; return new; end; $$;
 create or replace trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
+-- Only the trigger should run this; keep it off the public API (/rest/v1/rpc).
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 -- Backfill profiles for users who signed up before this script was run.
 insert into public.profiles (id, full_name) select id, coalesce(raw_user_meta_data ->> 'full_name', raw_user_meta_data ->> 'name', 'Rasoi friend') from auth.users on conflict (id) do nothing;
 
