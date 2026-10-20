@@ -81,6 +81,8 @@ export function UploadForm({ recipe }: { recipe?: Recipe }) {
         : await supabase.from("recipes").insert({ ...fields, author_id: auth.user.id }).select("id").single();
       if (saveError) throw new Error(saveError.code === "PGRST205" || saveError.code === "23503" ? setupMessage : saveError.message);
       if (!saved) throw new Error("You can only edit recipes you shared.");
+      // Next.js keeps visited pages alive (hidden) for back navigation, so clear the form or the next "Share recipe" opens pre-filled.
+      if (!recipe) { setTitle(""); setDescription(""); setCategory(categories[0]); setVeg(true); setHostelFriendly(false); setTime("30"); setServings("2"); setIngredients([""]); setSteps([""]); setFile(undefined); setPreview(""); setFileInputKey((key) => key + 1); }
       router.push(`/recipe/${saved.id}?notice=${recipe ? "updated" : "published"}`); router.refresh();
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "Something went wrong. Please try again.");
