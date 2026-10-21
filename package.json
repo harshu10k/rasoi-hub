@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "playwright test",
+    "test:unit": "playwright test tests/unit.spec.ts",
+    "test:api": "playwright test tests/api-security.spec.ts",
+    "test:e2e": "playwright test tests/e2e.spec.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -18,6 +22,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

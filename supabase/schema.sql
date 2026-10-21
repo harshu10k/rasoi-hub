@@ -59,3 +59,53 @@ drop policy if exists "recipe images are public" on storage.objects; create poli
 drop policy if exists "users upload recipe images" on storage.objects; create policy "users upload recipe images" on storage.objects for insert to authenticated with check (bucket_id = 'recipe-images' and (storage.foldername(name))[1] = (select auth.uid())::text);
 drop policy if exists "users update recipe images" on storage.objects; create policy "users update recipe images" on storage.objects for update to authenticated using (bucket_id = 'recipe-images' and owner_id = (select auth.uid())::text);
 drop policy if exists "users delete recipe images" on storage.objects; create policy "users delete recipe images" on storage.objects for delete to authenticated using (bucket_id = 'recipe-images' and owner_id = (select auth.uid())::text);
+
+-- ============================================================================================================
+-- Hardening. The website validates its forms, but anyone can open devtools and call the API directly, so every
+-- rule that matters is enforced here too. Each statement is re-runnable. Tests: tests/api-security.spec.ts.
+-- ============================================================================================================
+
+-- A JSON array of 1..max non-blank strings (ingredients/steps). Anything else (objects, numbers, "") is rejected,
+-- because one non-string item would break the recipe page for everyone who opens it.
+create or replace function public.is_text_list(value jsonb, max_items integer) returns boolean language sql immutable set search_path = '' as $$
+  select jsonb_typeof(value) = 'array' and jsonb_array_length(value) between 1 and max_items
+    and not exists (select 1 from jsonb_array_elements(value) item where jsonb_typeof(item) <> 'string' or btrim(item #>> '{}') = '' or char_length(item #>> '{}') > 300);
+$$;
+
+alter table public.recipes drop constraint if exists recipes_title_not_blank; alter table public.recipes add constraint recipes_title_not_blank check (char_length(btrim(title)) >= 3);
+alter table public.recipes drop constraint if exists recipes_description_length; alter table public.recipes add constraint recipes_description_length check (description is null or char_length(description) <= 1000);
+alter table public.recipes drop constraint if exists recipes_image_https; alter table public.recipes add constraint recipes_image_https check (image_url ~ '^https://' and char_length(image_url) <= 1000);
+alter table public.recipes drop constraint if exists recipes_ingredients_text; alter table public.recipes add constraint recipes_ingredients_text check (public.is_text_list(ingredients, 60));
+alter table public.recipes drop constraint if exists recipes_steps_text; alter table public.recipes add constraint recipes_steps_text check (public.is_text_list(steps, 60));
+alter table public.comments drop constraint if exists comments_body_not_blank; alter table public.comments add constraint comments_body_not_blank check (btrim(body) <> '');
+alter table public.profiles drop constraint if exists profiles_name_length; alter table public.profiles add constraint profiles_name_length check (char_length(btrim(full_name)) between 1 and 60);
+
+-- Who saved what is private: each user sees only their own favourites.
+drop policy if exists "favourites are public" on public.favourites;
+drop policy if exists "users see own favourites" on public.favourites; create policy "users see own favourites" on public.favourites for select to authenticated using ((select auth.uid()) = user_id);
+
+-- No rating your own recipe (it would let authors inflate their scores).
+drop policy if exists "signed in users rate" on public.ratings; create policy "signed in users rate" on public.ratings for insert to authenticated with check ((select auth.uid()) = user_id and not exists (select 1 from public.recipes r where r.id = recipe_id and r.author_id = (select auth.uid())));
+drop policy if exists "users change own rating" on public.ratings; create policy "users change own rating" on public.ratings for update using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id and not exists (select 1 from public.recipes r where r.id = recipe_id and r.author_id = (select auth.uid())));
+
+-- Spam brakes: at most 5 comments a minute and 20 new recipes an hour per user.
+create or replace function public.limit_comment_rate() returns trigger language plpgsql set search_path = '' as $$
+begin
+  if (select count(*) from public.comments where user_id = new.user_id and created_at > now() - interval '1 minute') >= 5 then
+    raise exception 'Slow down! You can post up to 5 comments a minute.' using errcode = 'P0001';
+  end if;
+  return new;
+end; $$;
+create or replace trigger comments_rate_limit before insert on public.comments for each row execute function public.limit_comment_rate();
+create or replace function public.limit_recipe_rate() returns trigger language plpgsql set search_path = '' as $$
+begin
+  if (select count(*) from public.recipes where author_id = new.author_id and created_at > now() - interval '1 hour') >= 20 then
+    raise exception 'Slow down! You can share up to 20 recipes an hour.' using errcode = 'P0001';
+  end if;
+  return new;
+end; $$;
+create or replace trigger recipes_rate_limit before insert on public.recipes for each row execute function public.limit_recipe_rate();
+revoke execute on function public.limit_comment_rate(), public.limit_recipe_rate() from public, anon, authenticated;
+
+-- Photos only: no HTML/SVG/executables or huge files in the public bucket (it would otherwise be free file hosting).
+update storage.buckets set file_size_limit = 10485760, allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'] where id = 'recipe-images';

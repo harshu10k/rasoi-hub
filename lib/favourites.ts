@@ -2,12 +2,15 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { setupMessage } from "@/lib/recipes";
+import { friendlyDbError } from "@/lib/recipes";
 
 // One shared copy of the signed-in user's favourites, so every heart on the page stays in sync with a single query.
 let ids = new Set<string>();
 let loaded = false;
 let loading: Promise<void> | undefined;
+// Recipes with a save/unsave request in flight. Extra clicks meanwhile are ignored so a fast double-click cannot
+// leave the heart showing one state while the database ends up in the other.
+const pending = new Set<string>();
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((listener) => listener());
 
@@ -33,6 +36,11 @@ export function useFavourites() {
   const ready = useSyncExternalStore(subscribe, () => loaded, () => false);
   useEffect(() => { load(); }, []);
   async function toggle(recipeId: string) {
+    if (pending.has(recipeId)) return "";
+    pending.add(recipeId);
+    try { return await toggleNow(recipeId); } finally { pending.delete(recipeId); }
+  }
+  async function toggleNow(recipeId: string) {
     const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return "Log in to save recipes.";
@@ -47,7 +55,7 @@ export function useFavourites() {
     const reverted = new Set(ids);
     if (wasSaved) reverted.add(recipeId); else reverted.delete(recipeId);
     ids = reverted; emit();
-    return error.code === "PGRST205" || error.code === "23503" ? setupMessage : error.message;
+    return friendlyDbError(error);
   }
   return { ids: snapshot, ready, toggle };
 }

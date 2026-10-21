@@ -10,13 +10,29 @@ type RecipeRow = {
   profiles: { full_name: string } | null; ratings: { rating: number }[] | null;
 };
 
+/** Turns a Supabase error into a message a cook can act on. */
+export function friendlyDbError(error: { code?: string; message: string }) {
+  if (error.code === "PGRST205" || error.code === "42P01") return setupMessage;
+  if (error.code === "23503") return "This recipe was just removed by its author.";
+  if (error.code === "23514" || error.code === "22P02") return "Something in that doesn't look right. Please check what you entered.";
+  if (error.code === "42501") return "You don't have permission to do that.";
+  return error.message;
+}
+
 const recipeSelect = "*, profiles(full_name), ratings(rating)";
 
-function toRecipe(row: RecipeRow): Recipe {
-  const ratings = row.ratings ?? [];
+// Rows can be written straight through the API, bypassing the form's validation, so never trust their shape:
+// one non-string ingredient would otherwise crash the recipe page for everyone who opens it.
+const textList = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
+const text = (value: unknown, fallback = "") => typeof value === "string" ? value : fallback;
+
+export function toRecipe(row: RecipeRow): Recipe {
+  const ratings = Array.isArray(row.ratings) ? row.ratings : [];
   const sample = sampleRecipes.find((item) => item.id === row.id);
   return {
-    ...row, description: row.description ?? undefined, author_name: sample?.author_name ?? row.profiles?.full_name ?? "Rasoi friend",
+    ...row, title: text(row.title, "Untitled recipe"), description: text(row.description) || undefined, image_url: text(row.image_url),
+    ingredients: textList(row.ingredients), steps: textList(row.steps),
+    author_name: sample?.author_name ?? text(row.profiles?.full_name, "Rasoi friend"),
     rating: ratings.length ? ratings.reduce((sum, item) => sum + item.rating, 0) / ratings.length : 0, rating_count: ratings.length,
   };
 }

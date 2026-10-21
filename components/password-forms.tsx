@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { authErrors, messageFor } from "@/lib/auth-messages";
 
 const noopSubscribe = () => () => {};
 const alert = "rounded-xl bg-[#fff0e8] px-4 py-3 text-sm text-[#b33f20]";
@@ -13,7 +14,7 @@ const submitClass = "rounded-xl bg-[#ff920d] px-5 py-3 font-bold text-black disa
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState(""); const [error, setError] = useState(""); const [sent, setSent] = useState(false); const [loading, setLoading] = useState(false);
   // Set by /auth/callback when a reset link could not be used; hidden once the user asks for a new one.
-  const linkError = useSyncExternalStore(noopSubscribe, () => new URLSearchParams(window.location.search).get("error"), () => null);
+  const linkError = useSyncExternalStore(noopSubscribe, () => messageFor(authErrors, new URLSearchParams(window.location.search).get("error")), () => "");
   const [linkErrorDismissed, setLinkErrorDismissed] = useState(false);
   const shownError = error || (linkErrorDismissed ? "" : linkError || "");
   async function submit(event: React.FormEvent) {

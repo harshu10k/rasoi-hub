@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/client";
 import { categories, type Recipe } from "@/lib/types";
-import { setupMessage } from "@/lib/recipes";
+import { friendlyDbError, setupMessage } from "@/lib/recipes";
 
 function resizeImage(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -48,6 +48,8 @@ export function UploadForm({ recipe }: { recipe?: Recipe }) {
     event.preventDefault();
     setError("");
     if (title.trim().length < 3) { setError("Give your recipe a title of at least 3 characters."); return; }
+    if (!Number.isInteger(Number(time)) || Number(time) < 1 || Number(time) > 1440) { setError("Cooking time must be a whole number of minutes (1 to 1440)."); return; }
+    if (!Number.isInteger(Number(servings)) || Number(servings) < 1 || Number(servings) > 50) { setError("Servings must be a whole number from 1 to 50."); return; }
     if (!title.trim() || ingredients.some((item) => !item.trim()) || steps.some((item) => !item.trim()) || Number(time) < 1 || Number(servings) < 1) {
       setError("Fill every field before sharing your recipe.");
       return;
@@ -79,10 +81,13 @@ export function UploadForm({ recipe }: { recipe?: Recipe }) {
       const { data: saved, error: saveError } = recipe
         ? await supabase.from("recipes").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", recipe.id).eq("author_id", auth.user.id).select("id").maybeSingle()
         : await supabase.from("recipes").insert({ ...fields, author_id: auth.user.id }).select("id").single();
-      if (saveError) throw new Error(saveError.code === "PGRST205" || saveError.code === "23503" ? setupMessage : saveError.message);
+      if (saveError) throw new Error(friendlyDbError(saveError));
       if (!saved) throw new Error("You can only edit recipes you shared.");
       // Next.js keeps visited pages alive (hidden) for back navigation, so clear the form or the next "Share recipe" opens pre-filled.
       if (!recipe) { setTitle(""); setDescription(""); setCategory(categories[0]); setVeg(true); setHostelFriendly(false); setTime("30"); setServings("2"); setIngredients([""]); setSteps([""]); setFile(undefined); setPreview(""); setFileInputKey((key) => key + 1); }
+      // A replaced photo would otherwise sit in storage forever. Stock/default photos live elsewhere and are skipped.
+      const oldPath = recipe && imageUrl !== recipe.image_url ? recipe.image_url.split("/storage/v1/object/public/recipe-images/")[1] : undefined;
+      if (oldPath) await supabase.storage.from("recipe-images").remove([decodeURIComponent(oldPath)]);
       router.push(`/recipe/${saved.id}?notice=${recipe ? "updated" : "published"}`); router.refresh();
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "Something went wrong. Please try again.");
@@ -96,10 +101,10 @@ export function UploadForm({ recipe }: { recipe?: Recipe }) {
     <div><p className="step-kicker">02 · The quick card</p><h2 className="mt-1 font-serif text-2xl font-bold text-[#39241b]">Make the details scannable</h2></div>
     <div className="grid gap-4 sm:grid-cols-2">
       <label className="grid gap-2 text-sm font-bold text-[#765f51]">Category<select value={category} onChange={(event) => setCategory(event.target.value as typeof category)} className="field">{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
-      <label className="grid gap-2 text-sm font-bold text-[#765f51]">Cooking time (minutes)<input required type="number" min="1" max="1440" value={time} onChange={(event) => setTime(event.target.value)} className="field" /></label>
+      <label className="grid gap-2 text-sm font-bold text-[#765f51]">Cooking time (minutes)<input required type="number" min="1" max="1440" step="1" value={time} onChange={(event) => setTime(event.target.value)} className="field" /></label>
     </div>
     <div className="grid gap-4 sm:grid-cols-2">
-      <label className="grid gap-2 text-sm font-bold text-[#765f51]">Servings<input required type="number" min="1" max="50" value={servings} onChange={(event) => setServings(event.target.value)} className="field" /></label>
+      <label className="grid gap-2 text-sm font-bold text-[#765f51]">Servings<input required type="number" min="1" max="50" step="1" value={servings} onChange={(event) => setServings(event.target.value)} className="field" /></label>
       <label className="grid gap-2 text-sm font-bold text-[#765f51]">Diet<select value={veg ? "veg" : "non-veg"} onChange={(event) => setVeg(event.target.value === "veg")} className="field"><option value="veg">Veg</option><option value="non-veg">Non-veg</option></select></label>
     </div>
     <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-[#eadfd2] bg-[#fffaf4] p-3 text-sm font-bold text-[#765f51]"><input type="checkbox" checked={hostelFriendly} onChange={(event) => setHostelFriendly(event.target.checked)} className="h-4 w-4 accent-[#ff920d]" /> Hostel students ke liye suitable recipe</label>

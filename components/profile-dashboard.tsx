@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { Bell, BookOpen, Heart, KeyRound, LogOut, MessageCircle, Settings, Star, UserRound } from "lucide-react";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/client";
-import { setupMessage } from "@/lib/recipes";
+import { friendlyDbError, setupMessage } from "@/lib/recipes";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 type Panel = "details" | "notifications" | "preferences";
@@ -64,7 +64,7 @@ export function ProfileDashboard() {
     const { error: profileError } = await supabase.from("profiles").upsert({ id: user.id, full_name: name.trim() });
     setSaving(false);
     if (metaError) setStatus({ text: metaError.message });
-    else if (profileError) setStatus({ text: profileError.code === "PGRST205" ? `Saved to your account. ${setupMessage}` : profileError.message });
+    else if (profileError) setStatus({ text: profileError.code === "PGRST205" ? `Saved to your account. ${setupMessage}` : friendlyDbError(profileError) });
     else { setStatus({ text: "Profile saved.", ok: true }); router.refresh(); }
   }
   function openPanel(id: Panel) {

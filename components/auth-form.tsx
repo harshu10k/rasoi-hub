@@ -6,6 +6,7 @@ import { useState, useSyncExternalStore } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/client";
 import { safeNextPath } from "@/lib/safe-path";
+import { authErrors, authNotices, messageFor } from "@/lib/auth-messages";
 
 const nextPath = () => safeNextPath(new URLSearchParams(window.location.search).get("next"));
 // Email links land on /auth/callback, which signs the user in and sends them back to where they were going.
@@ -25,8 +26,8 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [error, setError] = useState(""); const [message, setMessage] = useState(""); const [loading, setLoading] = useState(false); const [canResend, setCanResend] = useState(false);
   const router = useRouter();
   // Error or notice passed back from /auth/callback (e.g. the user cancelled Google sign-in). Hidden once they try again.
-  const callbackError = useSyncExternalStore(noopSubscribe, () => new URLSearchParams(window.location.search).get("error"), () => null);
-  const callbackNotice = useSyncExternalStore(noopSubscribe, () => new URLSearchParams(window.location.search).get("notice"), () => null);
+  const callbackError = useSyncExternalStore(noopSubscribe, () => messageFor(authErrors, new URLSearchParams(window.location.search).get("error")), () => "");
+  const callbackNotice = useSyncExternalStore(noopSubscribe, () => messageFor(authNotices, new URLSearchParams(window.location.search).get("notice")), () => "");
   const [callbackDismissed, setCallbackDismissed] = useState(false);
   const shownError = error || (callbackDismissed ? "" : callbackError || "");
   const shownMessage = message || (callbackDismissed ? "" : callbackNotice || "");

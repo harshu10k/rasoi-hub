@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { safeNextPath } from "@/lib/safe-path";
 
 const isProtectedRoute = (pathname: string) => pathname === "/" || pathname.startsWith("/recipe/") || pathname === "/upload" || pathname === "/profile" || pathname === "/my-recipes" || pathname === "/saved" || pathname === "/reset-password";
 // Pages that only make sense when signed out; a signed-in visitor is sent on to the app instead.
@@ -13,9 +14,7 @@ function redirectToLogin(request: NextRequest) {
 }
 
 function redirectIntoApp(request: NextRequest) {
-  const next = request.nextUrl.searchParams.get("next");
-  const target = next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
-  return NextResponse.redirect(new URL(target, request.url));
+  return NextResponse.redirect(new URL(safeNextPath(request.nextUrl.searchParams.get("next")), request.url));
 }
 
 export async function proxy(request: NextRequest) {

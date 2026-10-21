@@ -6,12 +6,12 @@ import { ArrowLeft, Clock3, Heart, Pencil, Share2, Star, Trash2, Users } from "l
 import type { Recipe } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import { useFavourites } from "@/lib/favourites";
-import { setupMessage } from "@/lib/recipes";
+import { friendlyDbError } from "@/lib/recipes";
+import { messageFor } from "@/lib/auth-messages";
 
 type Comment = { id: string; body: string; created_at: string; user_id: string; profiles: { full_name: string } | null };
 const commentSelect = "id, body, created_at, user_id, profiles(full_name)";
-const dbError = (error: { code?: string; message: string }) => error.code === "PGRST205" || error.code === "23503" ? setupMessage : error.message;
-const pageNotices: Record<string, string> = { published: "Your recipe is live! Everyone can see it now.", updated: "Changes saved." };
+const pageNotices = { published: "Your recipe is live! Everyone can see it now.", updated: "Changes saved." } as const;
 const noopSubscribe = () => () => {};
 
 export function RecipeDetail({ recipe }: { recipe: Recipe }) {
@@ -22,7 +22,7 @@ export function RecipeDetail({ recipe }: { recipe: Recipe }) {
   const [rating, setRating] = useState(0);
   const [ratingStats, setRatingStats] = useState({ sum: (recipe.rating ?? 0) * (recipe.rating_count ?? 0), count: recipe.rating_count ?? 0 });
   const [comment, setComment] = useState(""); const [comments, setComments] = useState<Comment[]>([]); const [posting, setPosting] = useState(false); const [deleting, setDeleting] = useState(false);
-  const pageNotice = useSyncExternalStore(noopSubscribe, () => pageNotices[new URLSearchParams(window.location.search).get("notice") ?? ""], () => undefined);
+  const pageNotice = useSyncExternalStore(noopSubscribe, () => messageFor(pageNotices, new URLSearchParams(window.location.search).get("notice")), () => "");
   const [notice, setNotice] = useState<{ text: string; ok?: boolean }>();
   const say = (text: string, ok = false) => setNotice(text ? { text, ok } : undefined);
   const shownNotice = notice ?? (pageNotice ? { text: pageNotice, ok: true } : undefined);
@@ -54,7 +54,7 @@ export function RecipeDetail({ recipe }: { recipe: Recipe }) {
     const previous = rating; const previousStats = ratingStats;
     setRating(value); setRatingStats(({ sum, count }) => previous ? { sum: sum - previous + value, count } : { sum: sum + value, count: count + 1 });
     const { error } = await supabase.from("ratings").upsert({ recipe_id: recipe.id, user_id: data.user.id, rating: value }, { onConflict: "user_id,recipe_id" });
-    if (error) { setRating(previous); setRatingStats(previousStats); say(dbError(error)); } else say(`Thanks! You rated this ${value} star${value > 1 ? "s" : ""}.`, true);
+    if (error) { setRating(previous); setRatingStats(previousStats); say(friendlyDbError(error)); } else say(`Thanks! You rated this ${value} star${value > 1 ? "s" : ""}.`, true);
   }
   async function addComment(event: React.FormEvent) {
     event.preventDefault(); if (!comment.trim()) return;
@@ -63,20 +63,20 @@ export function RecipeDetail({ recipe }: { recipe: Recipe }) {
     setPosting(true);
     const { data: row, error } = await supabase.from("comments").insert({ recipe_id: recipe.id, user_id: data.user.id, body: comment.trim() }).select(commentSelect).single();
     setPosting(false);
-    if (error) { say(dbError(error)); return; }
+    if (error) { say(friendlyDbError(error)); return; }
     setComments((current) => [row as unknown as Comment, ...current]); setComment(""); say("Comment added.", true);
   }
   async function deleteComment(id: string) {
     if (!window.confirm("Delete this comment?")) return;
     const { error } = await createClient().from("comments").delete().eq("id", id);
-    if (error) say(dbError(error)); else { setComments((current) => current.filter((item) => item.id !== id)); say("Comment deleted.", true); }
+    if (error) say(friendlyDbError(error)); else { setComments((current) => current.filter((item) => item.id !== id)); say("Comment deleted.", true); }
   }
   async function deleteRecipe() {
     if (!window.confirm(`Delete "${recipe.title}"? This can't be undone.`)) return;
     setDeleting(true);
     const supabase = createClient();
     const { error } = await supabase.from("recipes").delete().eq("id", recipe.id);
-    if (error) { setDeleting(false); say(dbError(error)); return; }
+    if (error) { setDeleting(false); say(friendlyDbError(error)); return; }
     // Best effort: remove the uploaded photo too. Default/stock photos live elsewhere and are left alone.
     const path = recipe.image_url.split("/storage/v1/object/public/recipe-images/")[1];
     if (path) await supabase.storage.from("recipe-images").remove([decodeURIComponent(path)]);

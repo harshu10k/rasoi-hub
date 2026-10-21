@@ -63,3 +63,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 [data-theme="dark"] .ring-\[\#eadfd2\] { --tw-ring-color: #3a2e26; }
 [data-theme="dark"] .field { border-color: #3a2e26; background: #1a1410; color: #f6e9dc; }
 [data-theme="dark"] .icon-button { border-color: #3a2e26; color: #d4bfae; }
+
+/* User-written text can contain long unbroken strings (URLs, "aaaa..."); wrap them instead of stretching the page sideways. */
+h1, h2, h3, p, li, dd, label { overflow-wrap: anywhere; }
