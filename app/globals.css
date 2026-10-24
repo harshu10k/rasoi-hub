@@ -3,17 +3,28 @@
 :root { --background: #fff8ef; --foreground: #151515; --brand-orange: #ff920d; }
 @theme inline { --color-background: var(--background); --color-foreground: var(--foreground); }
 
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* Clean sans-serif for UI text; headings opt into the serif with `font-serif`. */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+.font-serif { font-family: Georgia, "Times New Roman", ui-serif, serif; }
 * { box-sizing: border-box; }
 button, input, textarea, select { font: inherit; }
+/* Form controls may never push their container wider than the screen (grid/flex children default to min-width: auto). */
+input, select, textarea, img, video { max-width: 100%; }
+form, label, fieldset, form > div { min-width: 0; }
 button, a { -webkit-tap-highlight-color: transparent; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
-.field { min-height: 2.75rem; border: 1px solid #eadfd2; border-radius: .75rem; background: #fffdfb; padding: .65rem .8rem; color: #39241b; outline: none; }
+/* 16px text stops iPhones zooming the page when a field is tapped; full width so it never overflows its card. */
+.field { display: block; width: 100%; min-width: 0; min-height: 3rem; border: 1px solid #eadfd2; border-radius: .75rem; background: #fffdfb; padding: .7rem .9rem; color: #39241b; font-size: 16px; font-weight: 400; line-height: 1.4; outline: none; }
+.field::placeholder { color: #b09d90; }
+select.field { appearance: none; padding-right: 2.5rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23927b6d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .9rem center; }
+input[type="file"].field { padding: .45rem; font-size: 14px; }
 .field:focus { border-color: #c8501e; box-shadow: 0 0 0 3px rgb(200 80 30 / .1); }
 .icon-button { display: grid; place-items: center; border-radius: 999px; border: 1px solid #eadfd2; padding: .55rem; color: #765f51; }
 .step-kicker { color: #c8501e; font-size: .72rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
@@ -38,7 +49,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @keyframes crystal-float { 0%, 100% { margin-top: 0; } 50% { margin-top: -15px; } }
 @keyframes crystal-spin { from { transform: rotate(-26deg); } to { transform: rotate(334deg); } }
 @media (prefers-reduced-motion: reduce) { .crystal-shard, .crystal-glass, .crystal-orbit { animation: none; } }
-@media (max-width: 850px) { .auth-stage { display: block; } .crystal-panel { min-height: 390px; padding: 2rem 1.5rem; } .crystal-panel > .relative { min-height: 330px; } .crystal-shard-one { left: 53%; top: 28%; height: 11rem; width: 7rem; } .crystal-shard-two { left: 72%; top: 38%; height: 8rem; width: 5rem; } .crystal-shard-three { left: 32%; top: 48%; height: 7rem; width: 4rem; } .crystal-orbit { left: 49%; top: 29%; } .auth-form-panel { width: 100%; max-width: 620px; margin: auto; padding: 2.5rem 1.5rem 4rem; } }
+/* Phones/tablets: a short brand band above the form instead of a full-screen hero, with the crystals tucked to the
+   right so they never sit under the text. */
+@media (max-width: 850px) {
+  .auth-stage { display: block; min-height: 100dvh; }
+  .crystal-panel { min-height: 0; padding: 1.4rem 1.25rem 1.6rem; }
+  .crystal-panel > .relative { min-height: 0; gap: 1.1rem; }
+  .crystal-orbit, .crystal-glass, .crystal-shard-three { display: none; }
+  .crystal-shard { opacity: .5; }
+  .crystal-shard-one { left: auto; right: 1.25rem; top: 1rem; height: 6.5rem; width: 4rem; }
+  .crystal-shard-two { left: auto; right: -0.75rem; top: 3.5rem; height: 5rem; width: 3rem; }
+  .auth-brand { font-size: 2rem; }
+  .auth-form-panel { width: 100%; max-width: 560px; margin: 0 auto; padding: 1.75rem 1.25rem 3rem; }
+}
 
 /* Dark theme: remaps the warm light palette used across the app. Toggled via data-theme on <html> (see components/theme-toggle.tsx). */
 [data-theme="dark"] { --background: #120d0a; --foreground: #f6e9dc; color-scheme: dark; }
@@ -66,3 +89,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 /* User-written text can contain long unbroken strings (URLs, "aaaa..."); wrap them instead of stretching the page sideways. */
 h1, h2, h3, p, li, dd, label { overflow-wrap: anywhere; }
+
+/* Phone tab bar (components/header.tsx): leave room for it so it never covers the end of a page. */
+@media (max-width: 767px) { body:has(.mobile-tabbar) { padding-bottom: calc(4.25rem + env(safe-area-inset-bottom)); } }
+.mobile-tabbar { padding-bottom: env(safe-area-inset-bottom); }
+[data-theme="dark"] .mobile-tabbar { background: rgb(10 8 7 / .96); border-color: #2a211c; }
+[data-theme="dark"] select.field { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23b39d8d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .9rem center; }
+.truncate { overflow-wrap: normal; }

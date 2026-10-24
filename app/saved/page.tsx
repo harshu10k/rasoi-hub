@@ -1,2 +1,2 @@
 import { Header } from "@/components/header"; import { Suspense } from "react"; import { RequireUser } from "@/components/require-user"; import { SavedRecipes } from "@/components/recipe-lists";
-export default function SavedPage() { return <><Header /><main className="mx-auto max-w-7xl px-5 lg:px-8"><Suspense fallback={null}><RequireUser next="/saved"><SavedRecipes /></RequireUser></Suspense></main></>; }
+export default function SavedPage() { return <><Header /><main className="mx-auto max-w-7xl px-4 sm:px-5 lg:px-8"><Suspense fallback={null}><RequireUser next="/saved"><SavedRecipes /></RequireUser></Suspense></main></>; }

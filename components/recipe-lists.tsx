@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useFavourites } from "@/lib/favourites";
 import { listRecipesByAuthor, listRecipesByIds } from "@/lib/recipes";
 
-const grid = "grid gap-5 sm:grid-cols-2 lg:grid-cols-4";
+const grid = "grid gap-4 min-[520px]:grid-cols-2 sm:gap-5 lg:grid-cols-4";
 
 export function SavedRecipes() {
   const { ids, ready } = useFavourites();
@@ -20,7 +20,7 @@ export function SavedRecipes() {
   useEffect(() => { if (ready) listRecipesByIds(createClient(), [...ids]).then(setRecipes); }, [ready, key]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ready) return <p className="py-16 text-center text-[#927b6d]">Loading your saved recipes...</p>;
   if (!visible.length) return <div className="mx-auto max-w-4xl py-16 text-center"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#fff0e8] text-[#c8501e]"><Heart fill="currentColor" /></div><h1 className="mt-6 font-serif text-4xl font-bold text-[#39241b]">Your saved recipes</h1><p className="mx-auto mt-3 max-w-md text-[#927b6d]">Save the recipes you want to cook next and they will show up here.</p><Link href="/" className="mt-7 inline-block rounded-full bg-[#39241b] px-6 py-3 text-sm font-bold text-white">Explore recipes</Link></div>;
-  return <div className="py-10"><p className="text-sm font-bold uppercase tracking-[.18em] text-[#c8501e]">Cook these next</p><h1 className="mt-2 font-serif text-5xl font-bold text-[#39241b]">Your saved recipes</h1><div className={`mt-10 ${grid}`}>{visible.map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} />)}</div></div>;
+  return <div className="py-6 sm:py-10"><p className="text-xs font-bold sm:text-sm uppercase tracking-[.18em] text-[#c8501e]">Cook these next</p><h1 className="mt-2 font-serif text-4xl font-bold sm:text-5xl text-[#39241b]">Your saved recipes</h1><div className={`mt-6 sm:mt-10 ${grid}`}>{visible.map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} />)}</div></div>;
 }
 
 export function MyRecipes() {

@@ -198,3 +198,56 @@ test.describe("Signed in as A", () => {
     await expect(page.getByRole("heading", { name: "This dish isn't on the menu." })).toBeVisible();
   });
 });
+
+test.describe("Way to break it: opening the site on a small phone", () => {
+  const phones = [{ width: 320, height: 640 }, { width: 390, height: 844 }];
+  const overflow = (page: import("@playwright/test").Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  // iPhones zoom the whole page when a field with text under 16px is tapped, so typing seems to "jump" elsewhere.
+  const smallFields = (page: import("@playwright/test").Page) => page.evaluate(() => [...document.querySelectorAll("input:not([type=checkbox]):not([type=file]), select, textarea")]
+    .filter((el) => (el as HTMLElement).offsetParent && parseFloat(getComputedStyle(el).fontSize) < 16).map((el) => (el as HTMLInputElement).placeholder || el.tagName));
+
+  for (const phone of phones) {
+    test(`login and signup fit a ${phone.width}px screen and don't zoom on tap`, async ({ page }) => {
+      await page.setViewportSize(phone);
+      for (const path of ["/login", "/signup", "/forgot-password"]) {
+        await page.goto(path);
+        await expect(visible(page, "h1")).toBeVisible();
+        expect(await overflow(page), `${path} is wider than the screen`).toBeLessThanOrEqual(0);
+        expect(await smallFields(page), `${path} has fields under 16px`).toEqual([]);
+      }
+    });
+
+    test(`every signed-in page fits a ${phone.width}px screen, with the tab bar`, async ({ page }) => {
+      needAccounts(accountA);
+      await page.setViewportSize(phone);
+      await login(page, accountA!);
+      for (const path of ["/", sampleRecipe, "/upload", "/saved", "/my-recipes", "/profile", "/recipe/not-a-real-id"]) {
+        await page.goto(path);
+        await expect(visible(page, "h1").first()).toBeVisible();
+        expect(await overflow(page), `${path} is wider than the screen`).toBeLessThanOrEqual(0);
+        expect(await smallFields(page), `${path} has fields under 16px`).toEqual([]);
+        await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
+      }
+    });
+  }
+
+  test("the share form still fits after choosing a photo and typing a long title", async ({ page }) => {
+    needAccounts(accountA);
+    await page.setViewportSize({ width: 360, height: 780 });
+    await login(page, accountA!);
+    await page.goto("/upload");
+    await page.getByRole("textbox", { name: "Recipe title" }).locator("visible=true").fill("Aloo paratha just like nani makes it on cold Sunday mornings");
+    await page.locator("input[type=file]").locator("visible=true").setInputFiles(photo);
+    await expect(page.getByAltText("Recipe photo preview")).toBeVisible();
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    const box = await page.getByAltText("Recipe photo preview").boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(360);
+  });
+
+  test("the phone tab bar is hidden on a desktop screen", async ({ page }) => {
+    needAccounts(accountA);
+    await login(page, accountA!);
+    await expect(page.getByRole("navigation", { name: "Main" })).toBeHidden();
+  });
+});
