@@ -194,6 +194,31 @@ test.describe("Signed in as A", () => {
     expect(after[0]).not.toBe(before[0]);
   });
 
+  test("Way to break it: a just-shared recipe waiting for approval must show up in My recipes, with the pending count", async ({ page }) => {
+    const a = await clientAs(accountA!);
+    await cleanup(a.client, a.userId); // earlier tests leave pending recipes behind; the counts below assume only this test's
+    const live = await createRecipe(a.client, a.userId, { title: `${TEST_PREFIX}Already live` });
+    await approveAs(accountC!, live);
+    // Open My recipes first, so a stale copy of the page would be what the user sees when they come back to it.
+    await page.goto("/my-recipes");
+    await expect(page.getByRole("heading", { name: /Live on Rasoi Hub/ })).toBeVisible();
+    const title = `${TEST_PREFIX}Fresh pending ${Date.now()}`;
+    await page.getByRole("link", { name: /Share recipe/ }).locator("visible=true").first().click(); // in-app navigation, no reload
+    await expect(page).toHaveURL(/\/upload$/);
+    await page.getByRole("textbox", { name: "Recipe title" }).fill(title);
+    await page.getByPlaceholder("2 cups basmati rice").fill("Rice");
+    await page.getByPlaceholder("Toast the spices until fragrant").fill("Cook it.");
+    await page.getByRole("button", { name: "Share recipe" }).locator("visible=true").click();
+    await expect(page.getByText("Sent for review!")).toBeVisible();
+    await page.getByRole("link", { name: "My recipes" }).locator("visible=true").first().click();
+    await expect(page).toHaveURL(/\/my-recipes/);
+    await expect(page.getByRole("link", { name: "1 waiting for approval" }).locator("visible=true")).toBeVisible();
+    const pending = page.locator("section#pending:visible");
+    await expect(pending.getByRole("heading", { name: "Waiting for approval (1)" })).toBeVisible();
+    await expect(pending.getByText(title)).toBeVisible();
+    await expect(page.locator("section#approved:visible").getByText(`${TEST_PREFIX}Already live`)).toBeVisible();
+  });
+
   test("Way to break it: made-up or someone else's recipe links show a friendly 404", async ({ page }) => {
     await page.goto("/recipe/not-a-real-id");
     await expect(page.getByRole("heading", { name: "This dish isn't on the menu." })).toBeVisible();
