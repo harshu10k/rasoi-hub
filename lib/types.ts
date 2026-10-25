@@ -20,7 +20,13 @@ export type Recipe = {
   rating?: number;
   rating_count?: number;
   created_at?: string;
+  /** Moderation: only "approved" recipes are public; authors also see their own pending/rejected ones. */
+  status?: RecipeStatus;
+  rejection_reason?: string | null;
+  is_featured?: boolean;
 };
+
+export type RecipeStatus = "pending" | "approved" | "rejected";
 
 export const sampleRecipes: Recipe[] = [
   { id: "00000000-0000-4000-8000-000000000001", title: "Dilli Wali Butter Chicken", category: "Non-Veg", is_veg: false, cooking_time: 45, servings: 4, image_url: "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=900&q=85", ingredients: ["500g chicken", "2 tbsp butter", "1 cup tomato puree", "1/2 cup cream", "Garam masala"], steps: ["Marinate chicken with spices for 30 minutes.", "Sear until golden and set aside.", "Cook tomato puree with butter and spices.", "Fold chicken and cream into the gravy."], description: "Silky, smoky and deeply comforting, this restaurant-style classic is made for sharing.", author_name: "Meera Kapoor", rating: 4.9, rating_count: 128 },

@@ -109,3 +109,220 @@ revoke execute on function public.limit_comment_rate(), public.limit_recipe_rate
 
 -- Photos only: no HTML/SVG/executables or huge files in the public bucket (it would otherwise be free file hosting).
 update storage.buckets set file_size_limit = 10485760, allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'] where id = 'recipe-images';
+
+-- ============================================================================================================
+-- Admin portal. Roles live on profiles (user / admin / owner); every admin power is a security-definer function
+-- that re-checks the caller, so the rules hold even if someone calls the API directly. Re-runnable.
+-- Tests: tests/admin.spec.ts.
+-- ============================================================================================================
+
+alter table public.profiles add column if not exists role text not null default 'user';
+alter table public.profiles drop constraint if exists profiles_role_valid; alter table public.profiles add constraint profiles_role_valid check (role in ('user', 'admin', 'owner'));
+alter table public.profiles add column if not exists is_banned boolean not null default false;
+alter table public.profiles add column if not exists banned_reason text;
+
+-- Users may change only their own name/photo; role and ban status are written by the admin functions below.
+revoke insert, update on public.profiles from anon, authenticated;
+grant insert (id, full_name, avatar_url) on public.profiles to authenticated;
+grant update (full_name, avatar_url) on public.profiles to authenticated;
+-- The ban reason is between the user and the admins; everyone else sees name, photo and role only.
+revoke select on public.profiles from anon, authenticated;
+grant select (id, full_name, avatar_url, created_at, role, is_banned) on public.profiles to anon, authenticated;
+
+create or replace function public.is_admin() returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles where id = (select auth.uid()) and role in ('admin', 'owner') and not is_banned);
+$$;
+create or replace function public.is_active_user() returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles where id = (select auth.uid()) and not is_banned);
+$$;
+grant execute on function public.is_admin(), public.is_active_user() to anon, authenticated;
+
+-- Moderation status. Recipes that existed before the portal stay visible (default 'approved' only applies once).
+alter table public.recipes add column if not exists status text not null default 'approved';
+alter table public.recipes alter column status set default 'pending';
+alter table public.recipes drop constraint if exists recipes_status_valid; alter table public.recipes add constraint recipes_status_valid check (status in ('pending', 'approved', 'rejected'));
+alter table public.recipes add column if not exists rejection_reason text;
+alter table public.recipes add column if not exists reviewed_by uuid references public.profiles(id) on delete set null;
+alter table public.recipes add column if not exists reviewed_at timestamptz;
+alter table public.recipes add column if not exists is_featured boolean not null default false;
+create index if not exists recipes_status_idx on public.recipes(status, created_at desc);
+
+create table if not exists public.site_settings (key text primary key, value jsonb not null, updated_at timestamptz not null default now(), updated_by uuid references public.profiles(id) on delete set null);
+insert into public.site_settings (key, value) values ('auto_approve', 'false'), ('announcement', '""') on conflict (key) do nothing;
+alter table public.site_settings enable row level security;
+drop policy if exists "settings are public" on public.site_settings; create policy "settings are public" on public.site_settings for select using (true);
+
+create table if not exists public.admin_actions (id uuid primary key default gen_random_uuid(), admin_id uuid references public.profiles(id) on delete set null, action text not null, target_type text, target_id text, details jsonb not null default '{}', created_at timestamptz not null default now());
+create index if not exists admin_actions_created_idx on public.admin_actions(created_at desc);
+alter table public.admin_actions enable row level security;
+drop policy if exists "admins read the log" on public.admin_actions; create policy "admins read the log" on public.admin_actions for select to authenticated using (public.is_admin());
+
+-- New recipes wait for review (unless auto-approve is on). Authors can't approve or feature their own; editing an
+-- approved recipe's content sends it back for review so nothing unreviewed goes live.
+create or replace function public.guard_recipe_moderation() returns trigger language plpgsql security definer set search_path = '' as $$
+declare auto boolean := coalesce((select (value #>> '{}')::boolean from public.site_settings where key = 'auto_approve'), false);
+begin
+  if (select auth.uid()) is null then return new; end if; -- SQL editor / server maintenance
+  if public.is_admin() then
+    if tg_op = 'UPDATE' and new.status is distinct from old.status then new.reviewed_by := (select auth.uid()); new.reviewed_at := now(); end if;
+    if tg_op = 'INSERT' then new.status := 'approved'; new.reviewed_by := (select auth.uid()); new.reviewed_at := now(); end if;
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    new.status := case when auto then 'approved' else 'pending' end;
+    new.is_featured := false; new.rejection_reason := null; new.reviewed_by := null; new.reviewed_at := null;
+    return new;
+  end if;
+  new.is_featured := old.is_featured; new.reviewed_by := old.reviewed_by; new.reviewed_at := old.reviewed_at;
+  if (new.title, new.description, new.category, new.is_veg, new.is_hostel_friendly, new.cooking_time, new.servings, new.image_url, new.ingredients, new.steps)
+     is distinct from (old.title, old.description, old.category, old.is_veg, old.is_hostel_friendly, old.cooking_time, old.servings, old.image_url, old.ingredients, old.steps) then
+    new.status := case when auto then 'approved' else 'pending' end; new.rejection_reason := null;
+  else
+    new.status := old.status; new.rejection_reason := old.rejection_reason;
+  end if;
+  new.updated_at := now();
+  return new;
+end; $$;
+create or replace trigger recipes_moderation before insert or update on public.recipes for each row execute function public.guard_recipe_moderation();
+revoke execute on function public.guard_recipe_moderation() from public, anon, authenticated;
+
+-- Visibility: everyone sees approved recipes; authors also see their own pending/rejected ones; admins see all.
+drop policy if exists "recipes are public" on public.recipes;
+drop policy if exists "approved recipes are public" on public.recipes; create policy "approved recipes are public" on public.recipes for select using (status = 'approved' or author_id = (select auth.uid()) or public.is_admin());
+drop policy if exists "signed in users create recipes" on public.recipes; create policy "signed in users create recipes" on public.recipes for insert to authenticated with check ((select auth.uid()) = author_id and public.is_active_user());
+drop policy if exists "owners update recipes" on public.recipes; create policy "owners update recipes" on public.recipes for update using ((select auth.uid()) = author_id or public.is_admin()) with check (((select auth.uid()) = author_id and public.is_active_user()) or public.is_admin());
+drop policy if exists "owners delete recipes" on public.recipes; create policy "owners delete recipes" on public.recipes for delete using ((select auth.uid()) = author_id or public.is_admin());
+
+-- Banned users can't post, rate or save; nobody can interact with recipes that aren't approved yet.
+drop policy if exists "signed in users comment" on public.comments; create policy "signed in users comment" on public.comments for insert to authenticated with check ((select auth.uid()) = user_id and public.is_active_user() and exists (select 1 from public.recipes r where r.id = recipe_id and r.status = 'approved'));
+drop policy if exists "authors delete own comments" on public.comments; create policy "authors delete own comments" on public.comments for delete using ((select auth.uid()) = user_id or public.is_admin());
+drop policy if exists "signed in users rate" on public.ratings; create policy "signed in users rate" on public.ratings for insert to authenticated with check ((select auth.uid()) = user_id and public.is_active_user() and exists (select 1 from public.recipes r where r.id = recipe_id and r.status = 'approved' and r.author_id <> (select auth.uid())));
+drop policy if exists "users change own rating" on public.ratings; create policy "users change own rating" on public.ratings for update using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id and public.is_active_user() and exists (select 1 from public.recipes r where r.id = recipe_id and r.status = 'approved' and r.author_id <> (select auth.uid())));
+drop policy if exists "admins remove ratings" on public.ratings; create policy "admins remove ratings" on public.ratings for delete using (public.is_admin());
+drop policy if exists "users save recipes" on public.favourites; create policy "users save recipes" on public.favourites for insert to authenticated with check ((select auth.uid()) = user_id and public.is_active_user() and exists (select 1 from public.recipes r where r.id = recipe_id and r.status = 'approved'));
+drop policy if exists "admins delete recipe images" on storage.objects; create policy "admins delete recipe images" on storage.objects for delete to authenticated using (bucket_id = 'recipe-images' and public.is_admin());
+
+-- ---- Admin functions (each checks the caller and writes to the activity log) ----
+create or replace function public.require_admin() returns void language plpgsql stable security definer set search_path = '' as $$
+begin if not public.is_admin() then raise exception 'Admins only.' using errcode = '42501'; end if; end; $$;
+create or replace function public.log_admin_action(p_action text, p_type text, p_id text, p_details jsonb default '{}') returns void language sql security definer set search_path = '' as $$
+  insert into public.admin_actions (admin_id, action, target_type, target_id, details) values ((select auth.uid()), p_action, p_type, p_id, coalesce(p_details, '{}'));
+$$;
+revoke execute on function public.require_admin(), public.log_admin_action(text, text, text, jsonb) from public, anon, authenticated;
+
+create or replace function public.admin_review_recipe(p_recipe uuid, p_status text, p_reason text default null) returns void language plpgsql security definer set search_path = '' as $$
+declare v_title text;
+begin
+  perform public.require_admin();
+  if p_status not in ('approved', 'rejected', 'pending') then raise exception 'Unknown status.' using errcode = '22023'; end if;
+  if p_status = 'rejected' and coalesce(btrim(p_reason), '') = '' then raise exception 'Give the cook a reason for the rejection.' using errcode = '22023'; end if;
+  update public.recipes set status = p_status, rejection_reason = case when p_status = 'rejected' then left(btrim(p_reason), 500) end,
+    is_featured = case when p_status = 'approved' then is_featured else false end, reviewed_by = (select auth.uid()), reviewed_at = now()
+  where id = p_recipe returning title into v_title;
+  if v_title is null then raise exception 'Recipe not found.' using errcode = 'P0002'; end if;
+  perform public.log_admin_action('recipe.' || p_status, 'recipe', p_recipe::text, jsonb_build_object('title', v_title, 'reason', p_reason));
+end; $$;
+
+create or replace function public.admin_set_featured(p_recipe uuid, p_featured boolean) returns void language plpgsql security definer set search_path = '' as $$
+declare v_title text;
+begin
+  perform public.require_admin();
+  update public.recipes set is_featured = p_featured where id = p_recipe and (status = 'approved' or not p_featured) returning title into v_title;
+  if v_title is null then raise exception 'Only approved recipes can be featured.' using errcode = '22023'; end if;
+  perform public.log_admin_action(case when p_featured then 'recipe.featured' else 'recipe.unfeatured' end, 'recipe', p_recipe::text, jsonb_build_object('title', v_title));
+end; $$;
+
+create or replace function public.admin_delete_recipe(p_recipe uuid) returns text language plpgsql security definer set search_path = '' as $$
+declare v_title text; v_image text;
+begin
+  perform public.require_admin();
+  delete from public.recipes where id = p_recipe returning title, image_url into v_title, v_image;
+  if v_title is null then raise exception 'Recipe not found.' using errcode = 'P0002'; end if;
+  perform public.log_admin_action('recipe.deleted', 'recipe', p_recipe::text, jsonb_build_object('title', v_title));
+  return v_image; -- the app removes the photo from storage
+end; $$;
+
+create or replace function public.admin_delete_comment(p_comment uuid) returns void language plpgsql security definer set search_path = '' as $$
+declare v_body text; v_recipe uuid;
+begin
+  perform public.require_admin();
+  delete from public.comments where id = p_comment returning body, recipe_id into v_body, v_recipe;
+  if v_body is null then raise exception 'Comment not found.' using errcode = 'P0002'; end if;
+  perform public.log_admin_action('comment.deleted', 'comment', p_comment::text, jsonb_build_object('body', left(v_body, 200), 'recipe_id', v_recipe));
+end; $$;
+
+-- Any admin can promote a user; only the owner can remove an admin. The owner can never be changed or banned.
+create or replace function public.admin_set_role(p_user uuid, p_role text) returns void language plpgsql security definer set search_path = '' as $$
+declare v_old text; v_name text;
+begin
+  perform public.require_admin();
+  if p_role not in ('user', 'admin') then raise exception 'Role must be user or admin.' using errcode = '22023'; end if;
+  select role, full_name into v_old, v_name from public.profiles where id = p_user;
+  if v_old is null then raise exception 'User not found.' using errcode = 'P0002'; end if;
+  if v_old = 'owner' then raise exception 'The owner''s role cannot be changed.' using errcode = '42501'; end if;
+  if v_old = 'admin' and p_role = 'user' and not exists (select 1 from public.profiles where id = (select auth.uid()) and role = 'owner') then raise exception 'Only the owner can remove an admin.' using errcode = '42501'; end if;
+  update public.profiles set role = p_role where id = p_user;
+  perform public.log_admin_action('user.role.' || p_role, 'user', p_user::text, jsonb_build_object('name', v_name, 'from', v_old));
+end; $$;
+
+create or replace function public.admin_set_ban(p_user uuid, p_banned boolean, p_reason text default null) returns void language plpgsql security definer set search_path = '' as $$
+declare v_role text; v_name text;
+begin
+  perform public.require_admin();
+  select role, full_name into v_role, v_name from public.profiles where id = p_user;
+  if v_role is null then raise exception 'User not found.' using errcode = 'P0002'; end if;
+  if p_user = (select auth.uid()) then raise exception 'You cannot ban yourself.' using errcode = '42501'; end if;
+  if p_banned and v_role <> 'user' then raise exception 'Remove admin rights before banning.' using errcode = '42501'; end if;
+  update public.profiles set is_banned = p_banned, banned_reason = case when p_banned then left(btrim(coalesce(p_reason, '')), 500) end where id = p_user;
+  perform public.log_admin_action(case when p_banned then 'user.banned' else 'user.unbanned' end, 'user', p_user::text, jsonb_build_object('name', v_name, 'reason', p_reason));
+end; $$;
+
+create or replace function public.admin_update_setting(p_key text, p_value jsonb) returns void language plpgsql security definer set search_path = '' as $$
+begin
+  perform public.require_admin();
+  if p_key not in ('auto_approve', 'announcement') then raise exception 'Unknown setting.' using errcode = '22023'; end if;
+  if p_key = 'auto_approve' and jsonb_typeof(p_value) <> 'boolean' then raise exception 'auto_approve must be true or false.' using errcode = '22023'; end if;
+  if p_key = 'announcement' and (jsonb_typeof(p_value) <> 'string' or char_length(p_value #>> '{}') > 280) then raise exception 'Announcement must be text up to 280 characters.' using errcode = '22023'; end if;
+  insert into public.site_settings (key, value, updated_at, updated_by) values (p_key, p_value, now(), (select auth.uid()))
+    on conflict (key) do update set value = excluded.value, updated_at = now(), updated_by = excluded.updated_by;
+  perform public.log_admin_action('setting.' || p_key, 'setting', p_key, jsonb_build_object('value', p_value));
+end; $$;
+
+create or replace function public.admin_list_users() returns table (id uuid, name text, email text, role text, is_banned boolean, banned_reason text, signed_up_with text, created_at timestamptz, last_sign_in_at timestamptz, email_confirmed boolean, recipes bigint, approved bigint, pending bigint, comments bigint, ratings bigint)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform public.require_admin();
+  return query
+    select u.id, p.full_name, u.email::text, coalesce(p.role, 'user'), coalesce(p.is_banned, false), p.banned_reason, coalesce(u.raw_app_meta_data ->> 'provider', 'email'),
+      u.created_at, u.last_sign_in_at, u.email_confirmed_at is not null,
+      (select count(*) from public.recipes r where r.author_id = u.id), (select count(*) from public.recipes r where r.author_id = u.id and r.status = 'approved'),
+      (select count(*) from public.recipes r where r.author_id = u.id and r.status = 'pending'),
+      (select count(*) from public.comments c where c.user_id = u.id), (select count(*) from public.ratings x where x.user_id = u.id)
+    from auth.users u left join public.profiles p on p.id = u.id order by u.created_at desc;
+end; $$;
+
+create or replace function public.admin_stats() returns jsonb language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform public.require_admin();
+  return jsonb_build_object(
+    'users', (select count(*) from auth.users),
+    'new_users_7d', (select count(*) from auth.users where created_at > now() - interval '7 days'),
+    'active_users_7d', (select count(*) from auth.users where last_sign_in_at > now() - interval '7 days'),
+    'banned', (select count(*) from public.profiles where is_banned),
+    'admins', (select count(*) from public.profiles where role in ('admin', 'owner')),
+    'recipes', (select count(*) from public.recipes), 'approved', (select count(*) from public.recipes where status = 'approved'),
+    'pending', (select count(*) from public.recipes where status = 'pending'), 'rejected', (select count(*) from public.recipes where status = 'rejected'),
+    'featured', (select count(*) from public.recipes where is_featured),
+    'comments', (select count(*) from public.comments), 'ratings', (select count(*) from public.ratings), 'favourites', (select count(*) from public.favourites),
+    'signups_14d', (select coalesce(jsonb_agg(jsonb_build_object('day', d::date, 'count', (select count(*) from auth.users where created_at::date = d::date)) order by d), '[]') from generate_series(current_date - 13, current_date, interval '1 day') d),
+    'top_cooks', (select coalesce(jsonb_agg(t), '[]') from (select p.id, p.full_name as name, count(r.id) as recipes from public.profiles p join public.recipes r on r.author_id = p.id and r.status = 'approved' group by p.id order by count(r.id) desc limit 5) t)
+  );
+end; $$;
+
+revoke execute on function public.admin_review_recipe(uuid, text, text), public.admin_set_featured(uuid, boolean), public.admin_delete_recipe(uuid), public.admin_delete_comment(uuid),
+  public.admin_set_role(uuid, text), public.admin_set_ban(uuid, boolean, text), public.admin_update_setting(text, jsonb), public.admin_list_users(), public.admin_stats() from public, anon;
+grant execute on function public.admin_review_recipe(uuid, text, text), public.admin_set_featured(uuid, boolean), public.admin_delete_recipe(uuid), public.admin_delete_comment(uuid),
+  public.admin_set_role(uuid, text), public.admin_set_ban(uuid, boolean, text), public.admin_update_setting(text, jsonb), public.admin_list_users(), public.admin_stats() to authenticated;
+
+-- The owner: first admin, can't be demoted or banned by anyone.
+update public.profiles set role = 'owner' where id = (select id from auth.users where email = 'sahil.015sharma@gmail.com');

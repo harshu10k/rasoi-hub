@@ -6,11 +6,12 @@ Each test is named after a way a real user could break the app ("Way to break it
 |---|---|---|
 | `unit.spec.ts` | Open-redirect guard, login-page message codes, cleaning bad database rows, error messages | Nothing |
 | `api-security.spec.ts` | Everything a user can try from devtools: touching others' data, acting as someone else, junk data, file uploads, self-rating, spam | Accounts A and B |
-| `e2e.spec.ts` | In a real browser: private pages, tricky links, forms, Back after logout, XSS, double-clicks, deleted recipes, long text, photo replacement, 404s | Account A (logged-out tests need nothing) |
+| `e2e.spec.ts` | In a real browser: private pages, tricky links, forms, Back after logout, XSS, double-clicks, deleted recipes, long text, photo replacement, 404s | Accounts A and C (logged-out tests need nothing) |
+| `admin.spec.ts` | The admin portal: review queue, approve/reject/feature, bans, roles and owner protection, settings, the activity log, and the /admin pages | Accounts A, B and C, plus `SUPABASE_ACCESS_TOKEN` |
 
 ## One-time setup
 
-1. Create two accounts just for testing, with "+rasoitest" in the email (e.g. `you+rasoitest1@gmail.com`), and confirm them. The tests wipe everything these accounts own, and refuse to run with any other address.
+1. Create three accounts just for testing, with "+rasoitest" in the email (e.g. `you+rasoitest1@gmail.com`), and confirm them. The tests wipe everything these accounts own, and refuse to run with any other address.
 2. Create `.env.test.local` in the project root (it is git-ignored):
 
    ```
@@ -18,9 +19,18 @@ Each test is named after a way a real user could break the app ("Way to break it
    RASOI_TEST_A_PASSWORD=...
    RASOI_TEST_B_EMAIL=you+rasoi-b@gmail.com
    RASOI_TEST_B_PASSWORD=...
+   RASOI_TEST_C_EMAIL=you+rasoi-c@gmail.com
+   RASOI_TEST_C_PASSWORD=...
    ```
 
 3. Make sure `supabase/schema.sql` has been run on the project (the API tests check the database rules it adds).
+4. Make account C an admin once, in the Supabase SQL editor (new recipes wait for review, so the other suites use C to approve them):
+
+   ```sql
+   update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'you+rasoi-c@gmail.com');
+   ```
+
+5. One admin test promotes B and must demote it again, which only the owner can do through the app. It resets B through the Supabase Management API, so put a short-lived access token in `.env.local` as `SUPABASE_ACCESS_TOKEN=...` while running it (and revoke it afterwards).
 
 Tests use your installed Google Chrome; no browser download is needed. Tests without accounts are skipped, not failed.
 

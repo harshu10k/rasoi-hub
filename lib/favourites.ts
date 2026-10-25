@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { friendlyDbError } from "@/lib/recipes";
+import { recipeActionError } from "@/lib/recipes";
 
 // One shared copy of the signed-in user's favourites, so every heart on the page stays in sync with a single query.
 let ids = new Set<string>();
@@ -55,7 +55,7 @@ export function useFavourites() {
     const reverted = new Set(ids);
     if (wasSaved) reverted.add(recipeId); else reverted.delete(recipeId);
     ids = reverted; emit();
-    return friendlyDbError(error);
+    return recipeActionError(supabase, recipeId, error);
   }
   return { ids: snapshot, ready, toggle };
 }

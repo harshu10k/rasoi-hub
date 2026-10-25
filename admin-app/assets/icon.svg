@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#0b0908"/>
+  <rect x="262" y="232" width="500" height="500" rx="120" fill="#ff920d"/>
+  <text x="512" y="610" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="400" fill="#0b0908">R</text>
+  <text x="512" y="842" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="92" letter-spacing="18" fill="#ffbd62">ADMIN</text>
+</svg>

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { safeNextPath } from "@/lib/safe-path";
 
-const isProtectedRoute = (pathname: string) => pathname === "/" || pathname.startsWith("/recipe/") || pathname === "/upload" || pathname === "/profile" || pathname === "/my-recipes" || pathname === "/saved" || pathname === "/reset-password";
+const isProtectedRoute = (pathname: string) => pathname === "/" || pathname.startsWith("/recipe/") || pathname === "/upload" || pathname === "/profile" || pathname === "/my-recipes" || pathname === "/saved" || pathname === "/reset-password" || pathname === "/admin" || pathname.startsWith("/admin/");
 // Pages that only make sense when signed out; a signed-in visitor is sent on to the app instead.
 const isGuestOnlyRoute = (pathname: string) => pathname === "/login" || pathname === "/signup" || pathname === "/forgot-password";
 

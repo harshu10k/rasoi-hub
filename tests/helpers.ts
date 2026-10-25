@@ -4,17 +4,19 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 export type Account = { email: string; password: string };
 
 // Tests create and wipe data, so refuse to run as anything but a dedicated "+rasoitest" address.
-for (const name of ["RASOI_TEST_A_EMAIL", "RASOI_TEST_B_EMAIL"]) {
+for (const name of ["RASOI_TEST_A_EMAIL", "RASOI_TEST_B_EMAIL", "RASOI_TEST_C_EMAIL"]) {
   const email = process.env[name];
   if (email && !/\+rasoitest/i.test(email)) throw new Error(`${name}=${email} is not a dedicated test account (needs "+rasoitest" in it). Tests delete that account's data.`);
 }
 
 export const accountA: Account | undefined = process.env.RASOI_TEST_A_EMAIL ? { email: process.env.RASOI_TEST_A_EMAIL, password: process.env.RASOI_TEST_A_PASSWORD ?? "" } : undefined;
 export const accountB: Account | undefined = process.env.RASOI_TEST_B_EMAIL ? { email: process.env.RASOI_TEST_B_EMAIL, password: process.env.RASOI_TEST_B_PASSWORD ?? "" } : undefined;
+/** A test account with the admin role (set once in the database; see tests/README.md). */
+export const accountC: Account | undefined = process.env.RASOI_TEST_C_EMAIL ? { email: process.env.RASOI_TEST_C_EMAIL, password: process.env.RASOI_TEST_C_PASSWORD ?? "" } : undefined;
 
 /** Skips the current test (with a reason) unless the needed test accounts are configured. */
 export function needAccounts(...accounts: (Account | undefined)[]) {
-  test.skip(accounts.some((account) => !account), "Set RASOI_TEST_A_* / RASOI_TEST_B_* in .env.test.local (see tests/README.md)");
+  test.skip(accounts.some((account) => !account), "Set RASOI_TEST_A_* / B_* / C_* in .env.test.local (see tests/README.md)");
 }
 
 /** Every row the tests create starts with this, so leftovers are easy to find and clean up. */
@@ -59,6 +61,13 @@ export async function cleanup(client: SupabaseClient, userId: string) {
   await client.from("profiles").update({ full_name: "Test cook" }).eq("id", userId);
   const { data: files } = await client.storage.from("recipe-images").list(userId);
   if (files?.length) await client.storage.from("recipe-images").remove(files.map((file) => `${userId}/${file.name}`));
+}
+
+/** New recipes wait for review; tests that comment/rate/save on one first approve it as the test admin. */
+export async function approveAs(admin: Account, recipeId: string) {
+  const { client } = await clientAs(admin);
+  const { error } = await client.rpc("admin_review_recipe", { p_recipe: recipeId, p_status: "approved" });
+  if (error) throw new Error(`approve failed: ${error.message}`);
 }
 
 export async function login(page: Page, account: Account, next = "/") {

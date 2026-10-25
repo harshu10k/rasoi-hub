@@ -3,7 +3,7 @@
 // Needs two confirmed test accounts in .env.test.local. Creates rows prefixed "[test] " and removes them afterwards.
 import { expect, test } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { accountA, accountB, anonClient, cleanup, clientAs, createRecipe, needAccounts, recipeFields, TEST_PREFIX } from "./helpers";
+import { accountA, accountB, accountC, anonClient, approveAs, cleanup, clientAs, createRecipe, needAccounts, recipeFields, TEST_PREFIX } from "./helpers";
 
 let a: { client: SupabaseClient; userId: string };
 let b: { client: SupabaseClient; userId: string };
@@ -11,16 +11,17 @@ let recipeOfA: string;
 let commentOfA: string;
 
 test.beforeAll(async () => {
-  if (!accountA || !accountB) return;
+  if (!accountA || !accountB || !accountC) return;
   a = await clientAs(accountA); b = await clientAs(accountB);
   await cleanup(a.client, a.userId); await cleanup(b.client, b.userId);
   recipeOfA = await createRecipe(a.client, a.userId);
+  if (accountC) await approveAs(accountC, recipeOfA); // comments, ratings and saves need an approved recipe
   const { data, error } = await a.client.from("comments").insert({ recipe_id: recipeOfA, user_id: a.userId, body: `${TEST_PREFIX}A's comment` }).select("id").single();
   if (error) throw error;
   commentOfA = data.id;
 });
 test.afterAll(async () => { if (a) await cleanup(a.client, a.userId); if (b) await cleanup(b.client, b.userId); });
-test.beforeEach(() => needAccounts(accountA, accountB));
+test.beforeEach(() => needAccounts(accountA, accountB, accountC));
 
 test.describe("Way to break it: changing or deleting other people's things", () => {
   test("B cannot edit A's recipe", async () => {

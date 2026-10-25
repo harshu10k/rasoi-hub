@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
-import { BookOpen, Compass, Heart, Plus, Search, UserRound } from "lucide-react";
+import { BookOpen, Compass, Heart, Megaphone, Plus, Search, ShieldAlert, ShieldCheck, UserRound } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useAccount } from "@/lib/account";
 
 const navLinks = [
   { href: "/", label: "Explore", icon: Compass },
@@ -22,12 +23,31 @@ export function Header() {
         <Link href="/" aria-label="Rasoi Hub home" className="mr-auto flex items-center gap-1.5 sm:gap-2.5"><span className="font-sans text-2xl font-black tracking-[-0.08em] text-white sm:text-3xl">Rasoi</span><span className="rounded-md bg-[#ff920d] px-1.5 py-0.5 font-sans text-2xl font-black tracking-[-0.08em] text-black sm:px-2 sm:text-3xl">hub</span></Link>
         <Suspense fallback={<DesktopNav pathname="" />}><CurrentDesktopNav /></Suspense>
         <Link href="/upload" className="hidden rounded-md bg-[#ff920d] px-5 py-2.5 text-sm font-bold text-black shadow-lg shadow-[#ff920d]/20 transition hover:-translate-y-0.5 hover:bg-white md:block">+ Share recipe</Link>
+        <AdminLink />
         <ThemeToggle className="grid h-10 w-10 place-items-center rounded-full text-[#d8d8d8] hover:bg-[#252525]" />
         <Link href="/profile" aria-label="Profile" className="hidden h-10 w-10 place-items-center rounded-full border border-[#444] bg-[#151515] text-[#d8d8d8] hover:text-[#ff920d] md:grid"><UserRound size={18} /></Link>
       </div>
     </header>
+    <SiteNotices />
     <Suspense fallback={<TabBar pathname="" />}><CurrentTabBar /></Suspense>
   </>;
+}
+
+/** Shown only to admins: a shortcut into the admin portal. */
+function AdminLink() {
+  const { isAdmin } = useAccount();
+  if (!isAdmin) return null;
+  return <Link href="/admin" className="flex h-10 items-center gap-1.5 rounded-full border border-[#ff920d]/50 px-3 text-sm font-bold text-[#ff920d] hover:bg-[#ff920d] hover:text-black"><ShieldCheck size={17} /><span className="hidden sm:inline">Admin</span></Link>;
+}
+
+/** The admins' site-wide announcement, and a notice for restricted accounts. */
+function SiteNotices() {
+  const { announcement, isBanned } = useAccount();
+  if (!announcement && !isBanned) return null;
+  return <div className="border-b border-[#eadfd2]">
+    {isBanned && <p role="alert" className="flex items-center justify-center gap-2 bg-[#fff0e8] px-4 py-2.5 text-center text-sm font-semibold text-[#b33f20]"><ShieldAlert size={16} className="shrink-0" />Your account is restricted, so you can&apos;t post, rate or save recipes. Contact the Rasoi Hub team if you think this is a mistake.</p>}
+    {announcement && <p className="flex items-center justify-center gap-2 bg-[#fff4df] px-4 py-2.5 text-center text-sm font-semibold text-[#8a5a00]"><Megaphone size={16} className="shrink-0" />{announcement}</p>}
+  </div>;
 }
 
 function CurrentDesktopNav() { return <DesktopNav pathname={usePathname()} />; }

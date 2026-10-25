@@ -79,8 +79,8 @@ export function UploadForm({ recipe }: { recipe?: Recipe }) {
         steps: steps.map((item) => item.trim()).filter(Boolean), image_url: imageUrl,
       };
       const { data: saved, error: saveError } = recipe
-        ? await supabase.from("recipes").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", recipe.id).eq("author_id", auth.user.id).select("id").maybeSingle()
-        : await supabase.from("recipes").insert({ ...fields, author_id: auth.user.id }).select("id").single();
+        ? await supabase.from("recipes").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", recipe.id).eq("author_id", auth.user.id).select("id, status").maybeSingle()
+        : await supabase.from("recipes").insert({ ...fields, author_id: auth.user.id }).select("id, status").single();
       if (saveError) throw new Error(friendlyDbError(saveError));
       if (!saved) throw new Error("You can only edit recipes you shared.");
       // Next.js keeps visited pages alive (hidden) for back navigation, so clear the form or the next "Share recipe" opens pre-filled.
@@ -88,7 +88,9 @@ export function UploadForm({ recipe }: { recipe?: Recipe }) {
       // A replaced photo would otherwise sit in storage forever. Stock/default photos live elsewhere and are skipped.
       const oldPath = recipe && imageUrl !== recipe.image_url ? recipe.image_url.split("/storage/v1/object/public/recipe-images/")[1] : undefined;
       if (oldPath) await supabase.storage.from("recipe-images").remove([decodeURIComponent(oldPath)]);
-      router.push(`/recipe/${saved.id}?notice=${recipe ? "updated" : "published"}`); router.refresh();
+      // New and edited recipes wait for an admin unless auto-approve is on; the database decides and reports the status.
+      const notice = saved.status === "approved" ? (recipe ? "updated" : "published") : recipe ? "resubmitted" : "submitted";
+      router.push(`/recipe/${saved.id}?notice=${notice}`); router.refresh();
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "Something went wrong. Please try again.");
     } finally { setLoading(false); }

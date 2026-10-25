@@ -1,0 +1,11 @@
+{
+  "appId": "com.rasoihub.admin",
+  "appName": "Rasoi Admin",
+  "webDir": "www",
+  "server": {
+    "url": "https://rasoi-hub-liard.vercel.app/admin",
+    "allowNavigation": ["rasoi-hub-liard.vercel.app"],
+    "androidScheme": "https"
+  },
+  "android": { "backgroundColor": "#0b0908" }
+}

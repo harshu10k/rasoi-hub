@@ -4,10 +4,11 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import { Bell, BookOpen, Heart, KeyRound, LogOut, MessageCircle, Settings, Star, UserRound } from "lucide-react";
+import { Bell, BookOpen, Heart, KeyRound, LogOut, MessageCircle, Settings, ShieldCheck, Star, UserRound } from "lucide-react";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/client";
 import { friendlyDbError, setupMessage } from "@/lib/recipes";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useAccount } from "@/lib/account";
 
 type Panel = "details" | "notifications" | "preferences";
 type Activity = { id: string; kind: "comment" | "rating"; who: string; recipeId: string; recipeTitle: string; text: string; at: string };
@@ -39,6 +40,7 @@ export function ProfileDashboard() {
   const [saving, setSaving] = useState(false);
   const nameInput = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const { isAdmin, role } = useAccount();
   const passwordUpdated = useSyncExternalStore(noopSubscribe, () => new URLSearchParams(window.location.search).get("notice") === "password-updated", () => false);
   const shownStatus = status ?? (passwordUpdated ? { text: "Password updated. Use your new password next time you log in.", ok: true } : undefined);
 
@@ -61,7 +63,7 @@ export function ProfileDashboard() {
     setSaving(true); setStatus(undefined);
     const supabase = createClient();
     const { error: metaError } = await supabase.auth.updateUser({ data: { full_name: name.trim() } });
-    const { error: profileError } = await supabase.from("profiles").upsert({ id: user.id, full_name: name.trim() });
+    const { error: profileError } = await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", user.id);
     setSaving(false);
     if (metaError) setStatus({ text: metaError.message });
     else if (profileError) setStatus({ text: profileError.code === "PGRST205" ? `Saved to your account. ${setupMessage}` : friendlyDbError(profileError) });
@@ -82,5 +84,5 @@ export function ProfileDashboard() {
         {id === "details" && <dl className="grid gap-2"><div><dt className="text-xs uppercase tracking-wider text-[#a99587]">Email</dt><dd className="text-[#39241b]">{user?.email ?? "—"}</dd></div><div><dt className="text-xs uppercase tracking-wider text-[#a99587]">Signed in with</dt><dd className="text-[#39241b]">{provider}</dd></div><div><dt className="text-xs uppercase tracking-wider text-[#a99587]">Member since</dt><dd className="text-[#39241b]">{user ? dateLabel(user.created_at) : "—"}</dd></div><div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => nameInput.current?.focus()} className="rounded-lg border border-[#eadfd2] px-3 py-2 text-xs font-bold text-[#39241b]">Edit name</button><Link href="/reset-password" className="inline-flex items-center gap-1.5 rounded-lg border border-[#eadfd2] px-3 py-2 text-xs font-bold text-[#39241b]"><KeyRound size={13} /> Change password</Link></div></dl>}
         {id === "notifications" && (activity === undefined ? <p className="text-[#a99587]">Loading activity...</p> : activity.length ? <ul className="grid gap-3">{activity.map((item) => <li key={item.id}><Link href={`/recipe/${item.recipeId}`} className="flex gap-2 text-[#765f51] hover:text-[#c8501e]">{item.kind === "comment" ? <MessageCircle size={15} className="mt-0.5 shrink-0" /> : <Star size={15} className="mt-0.5 shrink-0" />}<span><b className="text-[#39241b]">{item.who}</b> {item.kind === "comment" ? "commented on" : "rated"} <b className="text-[#39241b]">{item.recipeTitle}</b>: {item.text}<span className="block text-xs text-[#a99587]">{dateLabel(item.at)}</span></span></Link></li>)}</ul> : <p className="text-[#a99587]">No activity yet. When someone rates or comments on a recipe you shared, it shows up here.</p>)}
         {id === "preferences" && <div className="flex items-center justify-between gap-3 text-[#765f51]"><span>Appearance</span><ThemeToggle withLabel className="flex items-center gap-2 rounded-lg border border-[#eadfd2] px-3 py-2 text-xs font-bold" /></div>}
-      </div>}</div>)}<button type="button" onClick={logout} className="flex items-center gap-3 rounded-xl bg-white p-3 text-left text-[#b33f20]"><LogOut size={17} /> Log out</button></div></div></section></main>;
+      </div>}</div>)}{isAdmin && <Link href="/admin" className="flex items-center gap-3 rounded-xl bg-[#39241b] p-3 text-left text-white"><ShieldCheck size={17} /> Admin panel <span className="ml-auto text-xs opacity-70">{role === "owner" ? "Owner" : "Admin"}</span></Link>}<button type="button" onClick={logout} className="flex items-center gap-3 rounded-xl bg-white p-3 text-left text-[#b33f20]"><LogOut size={17} /> Log out</button></div></div></section></main>;
 }

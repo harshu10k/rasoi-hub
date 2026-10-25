@@ -1,7 +1,7 @@
 // Real-browser tests: what a user can break by clicking, typing, sharing links and using Back.
 // Logged-out tests need nothing; the rest need test account A (and B where noted) in .env.test.local.
 import { expect, test } from "@playwright/test";
-import { accountA, cleanup, clientAs, createRecipe, login, needAccounts, TEST_PREFIX, visible } from "./helpers";
+import { accountA, accountC, approveAs, cleanup, clientAs, createRecipe, login, needAccounts, TEST_PREFIX, visible } from "./helpers";
 
 const sampleRecipe = "/recipe/00000000-0000-4000-8000-000000000002";
 const photo = "tests/fixtures/dish.jpg";
@@ -84,7 +84,7 @@ test.describe("Way to break it: confusing the login and signup forms", () => {
 });
 
 test.describe("Signed in as A", () => {
-  test.beforeEach(async ({ page }) => { needAccounts(accountA); await login(page, accountA!); });
+  test.beforeEach(async ({ page }) => { needAccounts(accountA, accountC); await login(page, accountA!); });
   test.afterAll(async () => { if (!accountA) return; const a = await clientAs(accountA); await cleanup(a.client, a.userId); });
 
   test("Way to break it: pressing Back after logging out must not show the private page again", async ({ page }) => {
@@ -106,6 +106,7 @@ test.describe("Signed in as A", () => {
     const a = await clientAs(accountA!);
     const payload = `<img src=x onerror="window.__pwned=1">`;
     const id = await createRecipe(a.client, a.userId, { title: `${TEST_PREFIX}${payload}` });
+    await approveAs(accountC!, id);
     await page.goto(`/recipe/${id}`);
     await expect(visible(page, "h1")).toHaveText(`${TEST_PREFIX}${payload}`);
     await page.getByPlaceholder("Share a cooking note...").fill(`${TEST_PREFIX}<script>window.__pwned=1</script>`);
@@ -129,6 +130,7 @@ test.describe("Signed in as A", () => {
   test("Way to break it: saving a recipe that its author deleted a moment ago gives an honest message", async ({ page }) => {
     const a = await clientAs(accountA!);
     const id = await createRecipe(a.client, a.userId);
+    await approveAs(accountC!, id);
     await page.goto(`/recipe/${id}`);
     await expect(page.getByText("Rate this recipe")).toBeVisible();
     await a.client.from("recipes").delete().eq("id", id);
@@ -139,6 +141,7 @@ test.describe("Signed in as A", () => {
   test("Way to break it: a very long word in a comment must not stretch the page sideways", async ({ page }) => {
     const a = await clientAs(accountA!);
     const id = await createRecipe(a.client, a.userId, { title: `${TEST_PREFIX}${"Long".repeat(28)}` });
+    await approveAs(accountC!, id);
     await page.setViewportSize({ width: 390, height: 800 });
     await page.goto(`/recipe/${id}`);
     await page.getByPlaceholder("Share a cooking note...").fill(`${TEST_PREFIX}${"a".repeat(600)}`);
@@ -165,7 +168,7 @@ test.describe("Signed in as A", () => {
     await page.getByPlaceholder("2 cups basmati rice").fill("Rice");
     await page.getByPlaceholder("Toast the spices until fragrant").fill("Cook it.");
     await page.getByRole("button", { name: "Share recipe" }).locator("visible=true").click();
-    await expect(page.getByText("Your recipe is live!")).toBeVisible();
+    await expect(page.getByText("Sent for review!")).toBeVisible();
     await page.getByRole("link", { name: "+ Share recipe" }).click();
     await expect(page).toHaveURL(/\/upload$/);
     await expect(page.getByRole("textbox", { name: "Recipe title" }).locator("visible=true")).toHaveValue("");
@@ -178,14 +181,14 @@ test.describe("Signed in as A", () => {
     await page.getByPlaceholder("2 cups basmati rice").fill("Rice");
     await page.getByPlaceholder("Toast the spices until fragrant").fill("Cook it.");
     await page.getByRole("button", { name: "Share recipe" }).locator("visible=true").click();
-    await expect(page.getByText("Your recipe is live!")).toBeVisible();
+    await expect(page.getByText("Sent for review!")).toBeVisible();
     const a = await clientAs(accountA!);
     const before = (await a.client.storage.from("recipe-images").list(a.userId)).data?.map((file) => file.name) ?? [];
     expect(before).toHaveLength(1);
     await page.getByRole("link", { name: "Edit recipe" }).click();
     await page.locator("input[type=file]").locator("visible=true").setInputFiles(photo);
     await page.getByRole("button", { name: "Save changes" }).locator("visible=true").click();
-    await expect(page.getByText("Changes saved.")).toBeVisible();
+    await expect(page.getByText("Changes saved and sent for review.")).toBeVisible();
     const after = (await a.client.storage.from("recipe-images").list(a.userId)).data?.map((file) => file.name) ?? [];
     expect(after).toHaveLength(1);
     expect(after[0]).not.toBe(before[0]);

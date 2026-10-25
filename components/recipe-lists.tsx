@@ -32,5 +32,5 @@ export function MyRecipes() {
   if (!state) return <p className="mt-10 text-[#927b6d]">Loading your recipes...</p>;
   if (state.error) return <p role="alert" className="mt-10 rounded-xl bg-[#fff0e8] px-4 py-3 text-sm text-[#b33f20]">{state.error}</p>;
   if (!state.recipes.length) return <div className="mt-10 rounded-3xl border border-dashed border-[#d8c5b4] py-16 text-center text-[#927b6d]">You haven&apos;t shared a recipe yet. <Link href="/upload" className="font-bold text-[#c8501e]">Share your first one</Link></div>;
-  return <div className={`mt-10 ${grid}`}>{state.recipes.map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} />)}</div>;
+  return <div className={`mt-10 ${grid}`}>{state.recipes.map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} showStatus />)}</div>;
 }
