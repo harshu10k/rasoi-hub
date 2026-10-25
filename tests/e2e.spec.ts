@@ -1,6 +1,6 @@
 // Real-browser tests: what a user can break by clicking, typing, sharing links and using Back.
 // Logged-out tests need nothing; the rest need test account A (and B where noted) in .env.test.local.
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { accountA, accountC, approveAs, cleanup, clientAs, createRecipe, login, needAccounts, TEST_PREFIX, visible } from "./helpers";
 
 const sampleRecipe = "/recipe/00000000-0000-4000-8000-000000000002";
@@ -80,6 +80,50 @@ test.describe("Way to break it: confusing the login and signup forms", () => {
     await page.getByPlaceholder("Type it again").fill("abcdef1");
     await page.getByRole("button", { name: "Create your account" }).click();
     await expect(visible(page, "p[role=alert]")).toContainText("already exists");
+  });
+});
+
+test.describe("Way to break it: Google sign-in inside the Android admin app", () => {
+  // Stands in for the bridge Capacitor injects into the app's WebView: records plugin calls and lets the test fire the
+  // "app opened by a link" event that Android sends when the Chrome tab hands the sign-in back.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __calls: { plugin: string; method: string; options?: { url?: string } }[]; __openLink?: (url: string) => void; Capacitor: unknown };
+      w.__calls = [];
+      w.Capacitor = {
+        nativePromise: async (plugin: string, method: string, options?: { url?: string }) => { w.__calls.push({ plugin, method, options }); return method === "getLaunchUrl" ? undefined : {}; },
+        addListener: (_plugin: string, _event: string, callback: (data: { url: string }) => void) => { w.__openLink = (url) => callback({ url }); return { remove: async () => {} }; },
+      };
+    });
+  });
+  const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: { plugin: string; method: string; options?: { url?: string } }[] }).__calls);
+  const openLink = (page: Page, url: string) => page.evaluate((link) => (window as unknown as { __openLink: (url: string) => void }).__openLink(link), url);
+
+  test("Google sign-in opens in the phone's browser and asks Supabase to come back to the app, not the website", async ({ page }) => {
+    await page.goto("/login?next=%2Fadmin");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await expect.poll(async () => (await calls(page)).find((call) => call.plugin === "Browser" && call.method === "open")?.options?.url ?? "").toContain("/auth/v1/authorize");
+    const url = new URL((await calls(page)).find((call) => call.method === "open")!.options!.url!);
+    expect(url.searchParams.get("provider")).toBe("google");
+    expect(url.searchParams.get("redirect_to")).toBe("com.rasoihub.admin://auth-callback?next=%2Fadmin");
+    await expect(page).toHaveURL(/\/login/); // the WebView itself never navigates to Google
+  });
+  test("coming back from a cancelled or broken sign-in shows a clear message and closes the browser tab", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByPlaceholder("you@example.com").waitFor();
+    await openLink(page, "com.rasoihub.admin://auth-callback?error=access_denied&error_description=Google+sign-in+was+cancelled.");
+    await expect(page.locator("form p[role=alert]")).toHaveText("Google sign-in was cancelled.");
+    expect((await calls(page)).some((call) => call.plugin === "Browser" && call.method === "close")).toBe(true);
+    await openLink(page, "com.rasoihub.admin://auth-callback?code=not-a-real-code");
+    await expect(page.locator("form p[role=alert]")).not.toHaveText("Google sign-in was cancelled.");
+    await expect(page).toHaveURL(/\/login/);
+  });
+  test("links meant for something else are ignored", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByPlaceholder("you@example.com").waitFor();
+    await openLink(page, "https://evil.example/auth-callback?code=abc");
+    await page.waitForTimeout(500);
+    await expect(page.locator("form p[role=alert]")).toHaveCount(0);
   });
 });
 
