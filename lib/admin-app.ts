@@ -20,14 +20,18 @@ export const isAdminApp = () => Boolean(bridge());
  */
 export const APP_AUTH_CALLBACK = "com.rasoihub.admin://auth-callback";
 
+/** Thrown when the installed app predates Google sign-in support (no Browser plugin, no return link). */
+export class OutdatedAppError extends Error {}
+
 /**
- * Opens `url` in a Chrome tab over the app. If the Browser plugin isn't there (an older build of the app), falls back to
- * navigating the WebView: Capacitor sends links outside allowNavigation to the phone's browser app instead.
+ * Opens `url` in a Chrome tab over the app. Builds of the app before 1.1 have no Browser plugin and can't receive the
+ * sign-in back either (Chrome would just hang on the return link), so they get OutdatedAppError instead.
  */
 export async function openInSystemBrowser(url: string) {
-  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
+  // An old build either rejects ("Browser" plugin is not implemented) or never answers.
+  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new OutdatedAppError()), 5000));
   try { await Promise.race([bridge()!.nativePromise("Browser", "open", { url }), timeout]); }
-  catch { window.location.href = url; }
+  catch (error) { throw error instanceof OutdatedAppError || /not implemented|not available/i.test(String(error)) ? new OutdatedAppError() : error; }
 }
 
 /**

@@ -116,12 +116,12 @@ test.describe("Way to break it: Google sign-in inside the Android admin app", ()
     await expect(page).toHaveURL(/\/login/); // the WebView itself never navigates to Google
     await expect(page.locator("form p[role=status]")).toContainText("Finish signing in with Google");
   });
-  test("on an older app without the Browser plugin, the button still goes to Google instead of doing nothing", async ({ page }) => {
+  test("on an older app without the Browser plugin, the button says to update the app instead of hanging in Chrome", async ({ page }) => {
     await page.goto("/login?next=%2Fadmin");
     await page.evaluate(() => sessionStorage.setItem("no-browser-plugin", "1"));
-    const toGoogle = page.waitForRequest((request) => request.url().includes("/auth/v1/authorize") && request.isNavigationRequest());
     await page.getByRole("button", { name: "Continue with Google" }).click();
-    expect(new URL((await toGoogle).url()).searchParams.get("redirect_to")).toBe("com.rasoihub.admin://auth-callback?next=%2Fadmin");
+    await expect(page.locator("form p[role=alert]")).toContainText("Install the latest RasoiAdmin.apk");
+    await expect(page).toHaveURL(/\/login/);
   });
   test("coming back from a cancelled or broken sign-in shows a clear message and closes the browser tab", async ({ page }) => {
     await page.goto("/login");

@@ -7,7 +7,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/client";
 import { safeNextPath } from "@/lib/safe-path";
 import { authErrors, authNotices, messageFor } from "@/lib/auth-messages";
-import { APP_AUTH_CALLBACK, isAdminApp, onAppAuthReturn, openInSystemBrowser } from "@/lib/admin-app";
+import { APP_AUTH_CALLBACK, isAdminApp, onAppAuthReturn, openInSystemBrowser, OutdatedAppError } from "@/lib/admin-app";
 
 const nextPath = () => safeNextPath(new URLSearchParams(window.location.search).get("next"));
 // Email links land on /auth/callback, which signs the user in and sends them back to where they were going.
@@ -86,7 +86,8 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         await openInSystemBrowser(data.url);
         setMessage("Finish signing in with Google in the browser window. You'll come straight back here.");
       } catch (startError) {
-        setError(`${startError instanceof Error ? startError.message : "Could not start Google sign-in."} Please try again, or log in with email.`);
+        if (startError instanceof OutdatedAppError) setError("This version of Rasoi Admin can't sign in with Google. Install the latest RasoiAdmin.apk (version 1.1), or log in with email.");
+        else setError(`${startError instanceof Error ? startError.message : "Could not start Google sign-in."} Please try again, or log in with email.`);
       } finally { setLoading(false); }
       return;
     }
