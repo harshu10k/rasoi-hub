@@ -91,13 +91,20 @@ test.describe("Way to break it: Google sign-in inside the Android admin app", ()
       const w = window as unknown as { __calls: { plugin: string; method: string; options?: { url?: string } }[]; __openLink?: (url: string) => void; Capacitor: unknown };
       w.__calls = [];
       w.Capacitor = {
-        nativePromise: async (plugin: string, method: string, options?: { url?: string }) => { w.__calls.push({ plugin, method, options }); return method === "getLaunchUrl" ? undefined : {}; },
+        nativePromise: async (plugin: string, method: string, options?: { url?: string }) => {
+          w.__calls.push({ plugin, method, options });
+          if (plugin === "Browser" && sessionStorage.getItem("no-browser-plugin")) throw new Error("\"Browser\" plugin is not implemented on android");
+          return method === "getLaunchUrl" ? undefined : {};
+        },
         addListener: (_plugin: string, _event: string, callback: (data: { url: string }) => void) => { w.__openLink = (url) => callback({ url }); return { remove: async () => {} }; },
       };
     });
   });
   const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: { plugin: string; method: string; options?: { url?: string } }[] }).__calls);
-  const openLink = (page: Page, url: string) => page.evaluate((link) => (window as unknown as { __openLink: (url: string) => void }).__openLink(link), url);
+  const openLink = async (page: Page, url: string) => {
+    await page.waitForFunction(() => typeof (window as unknown as { __openLink?: unknown }).__openLink === "function"); // listener registered after hydration
+    await page.evaluate((link) => (window as unknown as { __openLink: (url: string) => void }).__openLink(link), url);
+  };
 
   test("Google sign-in opens in the phone's browser and asks Supabase to come back to the app, not the website", async ({ page }) => {
     await page.goto("/login?next=%2Fadmin");
@@ -107,6 +114,14 @@ test.describe("Way to break it: Google sign-in inside the Android admin app", ()
     expect(url.searchParams.get("provider")).toBe("google");
     expect(url.searchParams.get("redirect_to")).toBe("com.rasoihub.admin://auth-callback?next=%2Fadmin");
     await expect(page).toHaveURL(/\/login/); // the WebView itself never navigates to Google
+    await expect(page.locator("form p[role=status]")).toContainText("Finish signing in with Google");
+  });
+  test("on an older app without the Browser plugin, the button still goes to Google instead of doing nothing", async ({ page }) => {
+    await page.goto("/login?next=%2Fadmin");
+    await page.evaluate(() => sessionStorage.setItem("no-browser-plugin", "1"));
+    const toGoogle = page.waitForRequest((request) => request.url().includes("/auth/v1/authorize") && request.isNavigationRequest());
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    expect(new URL((await toGoogle).url()).searchParams.get("redirect_to")).toBe("com.rasoihub.admin://auth-callback?next=%2Fadmin");
   });
   test("coming back from a cancelled or broken sign-in shows a clear message and closes the browser tab", async ({ page }) => {
     await page.goto("/login");

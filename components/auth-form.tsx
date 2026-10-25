@@ -80,10 +80,14 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     const supabase = createClient();
     if (isAdminApp()) {
       // Google blocks sign-in inside the app's WebView: run it in a Chrome tab, which hands the result back to the app.
-      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${APP_AUTH_CALLBACK}?next=${encodeURIComponent(nextPath())}`, skipBrowserRedirect: true, queryParams: { prompt: "select_account" } } });
-      setLoading(false);
-      if (oauthError || !data.url) { setError(oauthError?.message ?? "Could not start Google sign-in. Please try again."); return; }
-      await openInSystemBrowser(data.url);
+      try {
+        const { data, error: oauthError } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${APP_AUTH_CALLBACK}?next=${encodeURIComponent(nextPath())}`, skipBrowserRedirect: true, queryParams: { prompt: "select_account" } } });
+        if (oauthError || !data.url) throw new Error(oauthError?.message ?? "Could not start Google sign-in.");
+        await openInSystemBrowser(data.url);
+        setMessage("Finish signing in with Google in the browser window. You'll come straight back here.");
+      } catch (startError) {
+        setError(`${startError instanceof Error ? startError.message : "Could not start Google sign-in."} Please try again, or log in with email.`);
+      } finally { setLoading(false); }
       return;
     }
     const { error: oauthError } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl(), queryParams: { prompt: "select_account" } } });

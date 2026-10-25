@@ -20,7 +20,15 @@ export const isAdminApp = () => Boolean(bridge());
  */
 export const APP_AUTH_CALLBACK = "com.rasoihub.admin://auth-callback";
 
-export const openInSystemBrowser = (url: string) => bridge()!.nativePromise("Browser", "open", { url });
+/**
+ * Opens `url` in a Chrome tab over the app. If the Browser plugin isn't there (an older build of the app), falls back to
+ * navigating the WebView: Capacitor sends links outside allowNavigation to the phone's browser app instead.
+ */
+export async function openInSystemBrowser(url: string) {
+  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
+  try { await Promise.race([bridge()!.nativePromise("Browser", "open", { url }), timeout]); }
+  catch { window.location.href = url; }
+}
 
 /**
  * Calls `handle` with the sign-in return link, whether the app was still open (appUrlOpen) or Android restarted it while
@@ -38,7 +46,9 @@ export function onAppAuthReturn(handle: (url: URL) => void) {
     app.nativePromise("Browser", "close").catch(() => {});
     handle(new URL(raw));
   };
-  const listener = app.addListener("App", "appUrlOpen", (data) => accept(data.url));
-  app.nativePromise<{ url?: string } | undefined>("App", "getLaunchUrl").then((data) => accept(data?.url)).catch(() => {});
-  return () => { listener.remove(); };
+  try {
+    const listener = app.addListener("App", "appUrlOpen", (data) => accept(data.url));
+    app.nativePromise<{ url?: string } | undefined>("App", "getLaunchUrl").then((data) => accept(data?.url)).catch(() => {});
+    return () => { listener.remove(); };
+  } catch { return () => {}; } // an older build of the app without the App plugin
 }
