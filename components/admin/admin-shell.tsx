@@ -33,7 +33,7 @@ function usePendingCount() {
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pending = usePendingCount();
   return <div className="min-h-dvh md:flex">
-    <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-[#252525] bg-[#0b0908] p-5 text-white md:flex">
+    <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-[#252525] bg-[#0b0908] p-5 pt-[calc(1.25rem+env(safe-area-inset-top))] text-white md:flex">
       <Brand />
       <Suspense fallback={<SideNav pathname="" pending={pending} />}><CurrentSideNav pending={pending} /></Suspense>
       <div className="mt-auto grid gap-2 text-sm">
@@ -42,7 +42,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </div>
     </aside>
     <div className="min-w-0 flex-1">
-      <header className="sticky top-0 z-30 border-b border-[#252525] bg-[#0b0908] text-white md:hidden">
+      <header className="sticky top-0 z-30 border-b border-[#252525] bg-[#0b0908] pt-[env(safe-area-inset-top)] text-white md:hidden">
         <div className="flex h-14 items-center gap-3 px-4"><Brand /><Link href="/" aria-label="Back to website" className="ml-auto grid h-10 w-10 place-items-center rounded-full text-[#ccc]"><ArrowLeft size={18} /></Link><ThemeToggle className="grid h-10 w-10 place-items-center rounded-full text-[#ccc]" /></div>
         <Suspense fallback={<TopTabs pathname="" pending={pending} />}><CurrentTopTabs pending={pending} /></Suspense>
       </header>

@@ -13,10 +13,13 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Dark like the admin panel, so there is no white flash or white bars while a page loads. -->
+        <item name="android:windowBackground">@color/rasoiDark</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/rasoiDark</item>
     </style>
 </resources>

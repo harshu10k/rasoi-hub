@@ -18,7 +18,7 @@ const activeFor = (pathname: string) => (href: string) => href === "/" ? pathnam
 // time; Suspense lets the build prerender the plain links and fill in the highlight in the browser.
 export function Header() {
   return <>
-    <header className="sticky top-0 z-30 border-b border-[#252525] bg-[#050505]/95 text-white backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-[#252525] bg-[#050505]/95 pt-[env(safe-area-inset-top)] text-white backdrop-blur">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-5 px-4 sm:h-18 sm:px-5 lg:px-8">
         <Link href="/" aria-label="Rasoi Hub home" className="mr-auto flex items-center gap-1.5 sm:gap-2.5"><span className="font-sans text-2xl font-black tracking-[-0.08em] text-white sm:text-3xl">Rasoi</span><span className="rounded-md bg-[#ff920d] px-1.5 py-0.5 font-sans text-2xl font-black tracking-[-0.08em] text-black sm:px-2 sm:text-3xl">hub</span></Link>
         <Suspense fallback={<DesktopNav pathname="" />}><CurrentDesktopNav /></Suspense>

@@ -4,8 +4,19 @@
   "webDir": "www",
   "server": {
     "url": "https://rasoi-hub-liard.vercel.app/admin",
-    "allowNavigation": ["rasoi-hub-liard.vercel.app"],
-    "androidScheme": "https"
+    "allowNavigation": [
+      "rasoi-hub-liard.vercel.app"
+    ],
+    "androidScheme": "https",
+    "errorPath": "index.html"
   },
-  "android": { "backgroundColor": "#0b0908" }
+  "android": {
+    "backgroundColor": "#0b0908"
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK",
+      "initialViewportFitValueHint": "cover"
+    }
+  }
 }

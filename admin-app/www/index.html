@@ -1,4 +1,29 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rasoi Admin</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0908;color:#fff;font-family:system-ui,sans-serif;text-align:center;padding:24px}b{background:#ff920d;color:#000;border-radius:6px;padding:0 6px}p{color:#bbb}</style></head>
-<body><div><h1>Rasoi <b>hub</b> Admin</h1><p>Couldn't reach Rasoi Hub. Check your internet connection and reopen the app.</p></div></body></html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Rasoi Admin</title>
+<!-- Shown by the app when the admin panel can't be loaded (Capacitor server.errorPath), e.g. with no internet. -->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0908;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:center;padding:calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));-webkit-text-size-adjust:100%}
+  .logo{display:inline-flex;align-items:center;gap:6px;font-weight:800;font-size:28px;letter-spacing:-.5px}
+  .logo b{background:#ff920d;color:#000;border-radius:8px;padding:0 8px}
+  .tag{display:inline-block;margin-left:6px;border:1px solid #6b4a1d;color:#ffb347;border-radius:6px;padding:2px 6px;font-size:11px;letter-spacing:2px}
+  h1{margin:32px 0 8px;font-size:22px}
+  p{margin:0 auto;max-width:300px;color:#b9aca2;font-size:15px;line-height:1.5}
+  button{margin-top:28px;border:0;border-radius:14px;background:#ff920d;color:#000;font-weight:800;font-size:16px;padding:14px 32px;min-width:180px}
+  button:active{transform:scale(.98)}
+  small{display:block;margin-top:16px;color:#7d7068;font-size:12px}
+</style></head>
+<body><main>
+  <div class="logo">Rasoi <b>hub</b><span class="tag">ADMIN</span></div>
+  <h1>No internet connection</h1>
+  <p>Rasoi Admin needs the internet to show live recipes and users. Check your Wi-Fi or mobile data.</p>
+  <button type="button" id="retry">Try again</button>
+  <small id="hint">We'll reconnect automatically when you're back online.</small>
+</main>
+<script>
+  const ADMIN = "https://rasoi-hub-liard.vercel.app/admin";
+  const retry = () => { document.getElementById("retry").textContent = "Connecting..."; location.href = ADMIN; };
+  document.getElementById("retry").addEventListener("click", retry);
+  window.addEventListener("online", retry);
+</script>
+</body></html>

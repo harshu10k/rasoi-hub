@@ -6,7 +6,8 @@ export const metadata: Metadata = {
   description: "Discover, share and save the recipes that make home feel like home.",
 };
 
-// Phone browser chrome matches the dark header; viewport-fit=cover lets the tab bar respect the iPhone home indicator.
+// Phone browser chrome matches the dark header. viewport-fit=cover draws under the status bar and home indicator (also in
+// the Android admin app), so the headers and tab bar pad themselves with env(safe-area-inset-*).
 // Pinch-zoom stays enabled for accessibility; inputs use 16px text so iOS doesn't auto-zoom on focus instead.
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#050505" };
 
