@@ -24,7 +24,8 @@ test.afterAll(async () => {
   await c.client.rpc("admin_update_setting", { p_key: "announcement", p_value: "" });
   await cleanup(a.client, a.userId); await cleanup(b.client, b.userId); await cleanup(c.client, c.userId);
 });
-test.beforeEach(() => needAccounts(accountA, accountB, accountC));
+// A shares most of the recipes here; clearing them before each test keeps A under the 20-recipes-an-hour spam limit.
+test.beforeEach(async () => { needAccounts(accountA, accountB, accountC); await cleanup(a.client, a.userId); });
 
 const publicIds = async (id: string) => (await anonClient().from("recipes").select("id").eq("id", id)).data ?? [];
 
@@ -89,11 +90,70 @@ test.describe("Review queue: user recipes wait for an admin", () => {
   });
 });
 
+test.describe("Duplicate check: copies are flagged so admins don't have to compare by hand", () => {
+  type Match = { recipe_id: string; match_id: string; kind: string; same_author: boolean };
+  const check = async (id: string) => ((await c.client.rpc("admin_find_duplicates", { p_recipes: [id] })).data as (Match & { match_title: string })[])[0];
+  const unique = () => `${Date.now()}${Math.random().toString(36).slice(2)}`;
+  // A recipe that is live on the site, copied by tests below. Real recipes on the site could look like these, so the
+  // test dish carries a made-up spice unique to this run: the copies share it and match this original first.
+  const spice = `${unique()} spice`;
+  let original: { id: string; title: string; ingredients: string[]; steps: string[] };
+  test.beforeAll(async () => {
+    if (!c) return;
+    const id = await createRecipe(b.client, b.userId, { title: `${TEST_PREFIX}Punjabi Rajma Chawal`,
+      ingredients: ["1 cup rajma", "2 onions", "3 tomatoes", "Ginger garlic paste", spice, "Basmati rice"],
+      steps: ["Soak the rajma overnight and pressure cook till soft.", "Fry onions till brown, add ginger garlic paste.", "Add tomatoes and spices, cook till oil separates.", "Mix in rajma, simmer 20 minutes and serve with rice."] });
+    await c.client.rpc("admin_review_recipe", { p_recipe: id, p_status: "approved" });
+    original = (await c.client.from("recipes").select("id, title, ingredients, steps").eq("id", id).single()).data!;
+  });
+
+  test("a lightly edited copy under a new name is flagged as a likely copy of the original", async () => {
+    const id = await createRecipe(a.client, a.userId, { title: `${TEST_PREFIX}Best Rajma Chaawal`,
+      ingredients: ["Rajma 2 cups", "1 onion", "tomatoes", "ginger-garlic paste", spice, "Rice", "Salt"],
+      steps: ["Soak rajma overnight and pressure cook until soft.", "Fry the onions till brown and add ginger garlic paste.", "Add the tomatoes and spices and cook till the oil separates.", "Mix in the rajma, simmer for 20 minutes, serve with rice."] });
+    expect(await check(id)).toMatchObject({ match_id: original.id, kind: "copy", same_author: false });
+  });
+  test("someone's own version of the same dish is only marked 'same dish?', not a copy", async () => {
+    const id = await createRecipe(a.client, a.userId, { title: `${TEST_PREFIX}Rajma Chawal, Kashmiri style ${spice}`,
+      ingredients: ["Small red Kashmiri beans", "Mustard oil", "Fennel powder", "Dry ginger", "Hing", "Cloves"],
+      steps: ["Boil the beans with hing and salt in an open pot.", "Heat mustard oil until smoking, then cool slightly.", "Bloom cloves, fennel and dry ginger in the oil.", "Pour over the beans and cook on low heat for an hour."] });
+    // The closest earlier rajma may be the original or the copy from the test above; either is the right dish.
+    const match = await check(id);
+    expect(match).toMatchObject({ kind: "similar" });
+    expect(match.match_title).toMatch(/Rajma/);
+  });
+  test("a genuinely new dish is not flagged", async () => {
+    const id = await createRecipe(a.client, a.userId, { title: `${TEST_PREFIX}Zqx ${unique()}`, ingredients: [`zqx-${unique()}`, `vlk-${unique()}`], steps: [`Whisk ${unique()} slowly.`, `Rest ${unique()} overnight.`] });
+    expect(await check(id)).toBeUndefined();
+  });
+  test("a cook posting the same recipe twice is flagged, and the first one never is", async () => {
+    const fields = { title: `${TEST_PREFIX}Twice ${unique()}`, ingredients: [`qa-${unique()}`, `qb-${unique()}`, "Salt"], steps: [`Mix ${unique()} well.`, `Bake ${unique()} for an hour.`] };
+    const first = await createRecipe(a.client, a.userId, fields);
+    const second = await createRecipe(a.client, a.userId, fields);
+    expect(await check(first)).toBeUndefined();
+    expect(await check(second)).toMatchObject({ match_id: first, kind: "copy", same_author: true });
+  });
+  test("Requests labels the copy and 'Reject as duplicate' rejects it with a reason pointing at the original", async ({ page }) => {
+    const id = await createRecipe(a.client, a.userId, { title: `${TEST_PREFIX}Copied ${unique()}`, category: "Non-Veg", is_veg: false, ingredients: original.ingredients, steps: original.steps });
+    const title = (await a.client.from("recipes").select("title").eq("id", id).single()).data!.title as string;
+    await login(page, accountC!, "/admin/requests?show=copy");
+    const card = page.locator("article", { hasText: title }).locator("visible=true");
+    await expect(card.getByText("Likely copy")).toBeVisible();
+    // The "Likely copies" tab holds only copies: every card in it offers "Reject as duplicate".
+    await expect(page.locator("article:visible").filter({ hasNot: page.getByRole("button", { name: "Reject as duplicate" }) })).toHaveCount(0);
+    await card.getByRole("button", { name: "Reject as duplicate" }).click();
+    await expect(card).toHaveCount(0);
+    const row = (await a.client.from("recipes").select("status, rejection_reason").eq("id", id).single()).data!;
+    expect(row.status).toBe("rejected");
+    expect(row.rejection_reason).toContain(original.title);
+  });
+});
+
 test.describe("Plain users cannot use admin powers", () => {
   for (const [fn, args] of [
     ["admin_stats", {}], ["admin_list_users", {}], ["admin_review_recipe", { p_recipe: "00000000-0000-0000-0000-000000000000", p_status: "approved" }],
     ["admin_set_role", { p_user: "self", p_role: "admin" }], ["admin_set_ban", { p_user: "other", p_banned: true }],
-    ["admin_update_setting", { p_key: "announcement", p_value: "hacked" }], ["admin_delete_comment", { p_comment: "00000000-0000-0000-0000-000000000000" }],
+    ["admin_update_setting", { p_key: "announcement", p_value: "hacked" }], ["admin_delete_comment", { p_comment: "00000000-0000-0000-0000-000000000000" }], ["admin_find_duplicates", { p_recipes: [] }],
   ] as [string, Record<string, unknown>][]) {
     test(`a user calling ${fn} is refused`, async () => {
       const resolved = Object.fromEntries(Object.entries(args).map(([key, value]) => [key, value === "self" ? a.userId : value === "other" ? b.userId : value]));

@@ -24,13 +24,8 @@ Each test is named after a way a real user could break the app ("Way to break it
    ```
 
 3. Make sure `supabase/schema.sql` has been run on the project (the API tests check the database rules it adds).
-4. Make account C an admin once, in the Supabase SQL editor (new recipes wait for review, so the other suites use C to approve them):
-
-   ```sql
-   update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'you+rasoi-c@gmail.com');
-   ```
-
-5. One admin test promotes B and must demote it again, which only the owner can do through the app, and after every run the test admin's entries are removed from the activity log. Both go through the Supabase Management API, so put a short-lived access token in `.env.local` as `SUPABASE_ACCESS_TOKEN=...` while running the tests (and revoke it afterwards).
+4. Account C is the admin in tests. It is made an admin when the tests start and turned back into a plain user when they finish, so it never appears in the real admins list.
+5. Promoting C, demoting it (and B, which one test promotes) again, and removing the test admin's entries from the activity log all go through the Supabase Management API, so put a short-lived access token in `.env.local` as `SUPABASE_ACCESS_TOKEN=...` while running the tests (and revoke it afterwards).
 
 Tests use your installed Google Chrome; no browser download is needed. Tests without accounts are skipped, not failed.
 

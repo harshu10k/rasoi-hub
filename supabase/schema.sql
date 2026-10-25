@@ -324,5 +324,56 @@ revoke execute on function public.admin_review_recipe(uuid, text, text), public.
 grant execute on function public.admin_review_recipe(uuid, text, text), public.admin_set_featured(uuid, boolean), public.admin_delete_recipe(uuid), public.admin_delete_comment(uuid),
   public.admin_set_role(uuid, text), public.admin_set_ban(uuid, boolean, text), public.admin_update_setting(text, jsonb), public.admin_list_users(), public.admin_stats() to authenticated;
 
+-- ============================================================================
+-- Duplicate detection for the review queue
+-- Compares each pending recipe with the live and pending recipes submitted BEFORE it (so the first one is the
+-- "original"), by title, ingredients and steps. Trigram similarity tolerates typos and small edits; titles use
+-- word similarity so "Butter Chicken" matches "Dilli Wali Butter Chicken".
+-- ============================================================================
+create extension if not exists pg_trgm with schema extensions;
+
+-- A recipe list (ingredients or steps) as plain comparable text: lower case, no quantities or punctuation.
+-- Ingredients are sorted so a reordered list still matches; steps keep their order.
+create or replace function public.recipe_fingerprint(p_items jsonb, p_sorted boolean) returns text language sql immutable set search_path = '' as $$
+  select coalesce(btrim(regexp_replace(lower(string_agg(item, ' ' order by case when p_sorted then item end, position)), '[[:punct:][:digit:][:space:]]+', ' ', 'g')), '')
+  from jsonb_array_elements_text(case when jsonb_typeof(p_items) = 'array' then p_items else '[]'::jsonb end) with ordinality as list(item, position);
+$$;
+revoke execute on function public.recipe_fingerprint(jsonb, boolean) from public, anon;
+
+-- For each given recipe, its closest earlier match. kind = 'copy' when the ingredients and method are near-identical,
+-- 'similar' when it looks like the same dish. Recipes with no meaningful match are left out.
+create or replace function public.admin_find_duplicates(p_recipes uuid[]) returns table (
+  recipe_id uuid, match_id uuid, match_title text, match_author text, match_status text, same_author boolean,
+  title_score real, ingredients_score real, steps_score real, score real, kind text
+) language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform public.require_admin();
+  return query
+  with mine as (
+    select r.id, r.author_id, r.created_at, lower(btrim(r.title)) as t,
+      public.recipe_fingerprint(r.ingredients, true) as ing, public.recipe_fingerprint(r.steps, false) as stp
+    from public.recipes r where r.id = any(p_recipes)
+  ), scored as (
+    select m.id as recipe_id, o.id as match_id, o.title as match_title, p.full_name as match_author, o.status as match_status,
+      o.author_id = m.author_id as same_author,
+      greatest(extensions.word_similarity(m.t, lower(btrim(o.title))), extensions.word_similarity(lower(btrim(o.title)), m.t)) as ts,
+      extensions.similarity(m.ing, public.recipe_fingerprint(o.ingredients, true)) as ings,
+      extensions.similarity(m.stp, public.recipe_fingerprint(o.steps, false)) as stps
+    from mine m
+    join public.recipes o on o.id <> m.id and o.created_at < m.created_at and o.status in ('approved', 'pending')
+    left join public.profiles p on p.id = o.author_id
+  ), ranked as (
+    select s.*, (0.2 * s.ts + 0.4 * s.ings + 0.4 * s.stps)::real as total,
+      case when s.ings >= 0.6 and s.stps >= 0.6 then 'copy' when s.ts >= 0.6 or (0.2 * s.ts + 0.4 * s.ings + 0.4 * s.stps) >= 0.4 then 'similar' end as k
+    from scored s
+  )
+  select distinct on (x.recipe_id) x.recipe_id, x.match_id, x.match_title, x.match_author, x.match_status, x.same_author,
+    x.ts::real, x.ings::real, x.stps::real, x.total, x.k
+  from ranked x where x.k is not null
+  order by x.recipe_id, (x.k = 'copy') desc, x.total desc;
+end; $$;
+revoke execute on function public.admin_find_duplicates(uuid[]) from public, anon;
+grant execute on function public.admin_find_duplicates(uuid[]) to authenticated;
+
 -- The owner: first admin, can't be demoted or banned by anyone.
 update public.profiles set role = 'owner' where id = (select id from auth.users where email = 'sahil.015sharma@gmail.com');

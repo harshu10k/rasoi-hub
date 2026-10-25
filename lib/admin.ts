@@ -25,6 +25,12 @@ export type AdminRecipe = {
 export type AdminComment = { id: string; body: string; created_at: string; user_id: string; recipe_id: string; profiles: { full_name: string } | null; recipes: { title: string } | null };
 export type AdminAction = { id: string; action: string; target_type: string | null; target_id: string | null; details: Record<string, unknown>; created_at: string; profiles: { full_name: string } | null };
 
+/** The closest earlier recipe to a pending one (see admin_find_duplicates in supabase/schema.sql). */
+export type DuplicateMatch = {
+  recipe_id: string; match_id: string; match_title: string; match_author: string | null; match_status: RecipeStatus; same_author: boolean;
+  title_score: number; ingredients_score: number; steps_score: number; score: number; kind: "copy" | "similar";
+};
+
 export const adminRecipeSelect = "id, title, description, category, is_veg, is_hostel_friendly, cooking_time, servings, image_url, ingredients, steps, status, rejection_reason, is_featured, created_at, updated_at, reviewed_at, author_id, profiles!recipes_author_id_fkey(full_name), ratings(rating)";
 
 /** Calls an admin database function and returns its data, throwing the database's own (human-written) message. */
@@ -33,6 +39,17 @@ export async function adminRpc<T = void>(fn: string, args: Record<string, unknow
   if (error) throw new Error(error.code === "42501" && !error.message.includes(" ") ? "Admins only." : error.message);
   return data as T;
 }
+
+/** Duplicate check for the given recipes, keyed by recipe id; recipes with no close match are absent. */
+export async function findDuplicates(ids: string[]) {
+  if (!ids.length) return {} as Record<string, DuplicateMatch>;
+  const rows = await adminRpc<DuplicateMatch[]>("admin_find_duplicates", { p_recipes: ids });
+  return Object.fromEntries(rows.map((row) => [row.recipe_id, row])) as Record<string, DuplicateMatch>;
+}
+
+export const duplicateReason = (match: DuplicateMatch) => match.same_author
+  ? `You already shared this recipe ("${match.match_title}"). Edit that one instead of posting it again.`
+  : `This recipe is already on Rasoi Hub as "${match.match_title}". Please share your own recipe or add your own twist.`;
 
 export const reviewRecipe = (id: string, status: RecipeStatus, reason?: string) => adminRpc("admin_review_recipe", { p_recipe: id, p_status: status, p_reason: reason ?? null });
 export const setFeatured = (id: string, featured: boolean) => adminRpc("admin_set_featured", { p_recipe: id, p_featured: featured });
