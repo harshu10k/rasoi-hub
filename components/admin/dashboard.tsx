@@ -25,14 +25,14 @@ export function AdminDashboard() {
     {stats.pending > 0 && <Link href="/admin/requests" className="mb-5 flex items-center gap-3 rounded-2xl border border-[#f3d9a4] bg-[#fff8e6] p-4 text-[#8a5a00] hover:border-[#ff920d]"><ClipboardCheck size={22} className="shrink-0" /><span className="min-w-0 flex-1"><b>{stats.pending} recipe{stats.pending === 1 ? "" : "s"} waiting for review.</b> They stay hidden until you approve them.</span><ArrowRight size={18} className="shrink-0" /></Link>}
     <section aria-label="Users" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <StatTile label="Users" value={stats.users} hint={`+${stats.new_users_7d} this week`} href="/admin/users" />
-      <StatTile label="Active (7 days)" value={stats.active_users_7d} hint="logged in this week" tone="good" />
-      <StatTile label="Admins" value={stats.admins} />
-      <StatTile label="Banned" value={stats.banned} tone={stats.banned ? "bad" : "default"} />
+      <StatTile label="Active (7 days)" value={stats.active_users_7d} hint="logged in this week" tone="good" href="/admin/users?show=active" />
+      <StatTile label="Admins" value={stats.admins} hint="see who" href="/admin/users?show=admins" />
+      <StatTile label="Banned" value={stats.banned} tone={stats.banned ? "bad" : "default"} href="/admin/users?show=banned" />
     </section>
     <section aria-label="Recipes" className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatTile label="Live recipes" value={stats.approved} hint={`${stats.featured} featured`} tone="good" href="/admin/recipes" />
+      <StatTile label="Live recipes" value={stats.approved} hint={`${stats.featured} featured`} tone="good" href="/admin/recipes?show=approved" />
       <StatTile label="Pending" value={stats.pending} tone={stats.pending ? "warn" : "default"} href="/admin/requests" />
-      <StatTile label="Rejected" value={stats.rejected} />
+      <StatTile label="Rejected" value={stats.rejected} href="/admin/recipes?show=rejected" />
       <StatTile label="Comments" value={stats.comments} hint={`${stats.ratings} ratings · ${stats.favourites} saves`} href="/admin/comments" />
     </section>
     <div className="mt-5 grid gap-5 lg:grid-cols-[1.4fr_1fr]">
@@ -45,7 +45,7 @@ export function AdminDashboard() {
     </div>
     <section className="mt-5 rounded-2xl border border-[#eadfd2] bg-white p-5">
       <div className="flex items-center justify-between"><h2 className="font-serif text-xl font-bold text-[#39241b]">Recent admin activity</h2><Link href="/admin/activity" className="text-sm font-bold text-[#c8501e]">See all</Link></div>
-      {recent.length ? <ul className="mt-3 divide-y divide-[#f1e7dc]">{recent.map((item) => <li key={item.id} className="py-2.5 text-sm text-[#765f51]"><b className="text-[#39241b]">{item.profiles?.full_name ?? "An admin"}</b> {describeAction(item)} <span className="text-xs text-[#a99587]">· {timeAgo(item.created_at)}</span></li>)}</ul> : <p className="mt-3 text-sm text-[#927b6d]">Nothing yet. Approvals, bans and other admin actions will appear here.</p>}
+      {recent.length ? <ul className="mt-3 divide-y divide-[#f1e7dc]">{recent.map((item) => <li key={item.id} className="py-2.5 text-sm text-[#765f51] [overflow-wrap:anywhere]"><b className="text-[#39241b]">{item.profiles?.full_name ?? "An admin"}</b> {describeAction(item)} <span className="text-xs text-[#a99587]">· {timeAgo(item.created_at)}</span></li>)}</ul> : <p className="mt-3 text-sm text-[#927b6d]">Nothing yet. Approvals, bans and other admin actions will appear here.</p>}
     </section>
   </>;
 }

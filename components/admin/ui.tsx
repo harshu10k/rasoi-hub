@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import type { RecipeStatus } from "@/lib/types";
@@ -22,7 +24,7 @@ export function StatTile({ label, value, hint, tone = "default", href }: { label
   const accent = { default: "text-[#39241b]", warn: "text-[#b96100]", good: "text-[#2f7b4e]", bad: "text-[#b33f20]" }[tone];
   const body = <><p className="text-xs font-bold uppercase tracking-wider text-[#a99587]">{label}</p><p className={`mt-1 font-serif text-3xl font-bold ${accent}`}>{value}</p>{hint && <p className="mt-0.5 text-xs text-[#927b6d]">{hint}</p>}</>;
   const cls = "block rounded-2xl border border-[#eadfd2] bg-white p-4";
-  return href ? <a href={href} className={`${cls} hover:border-[#ff920d]`}>{body}</a> : <div className={cls}>{body}</div>;
+  return href ? <Link href={href} className={`${cls} hover:border-[#ff920d]`}>{body}</Link> : <div className={cls}>{body}</div>;
 }
 
 const statusStyle: Record<RecipeStatus, string> = { approved: "bg-[#edf8ee] text-[#2f7b4e]", pending: "bg-[#fff4df] text-[#8a5a00]", rejected: "bg-[#fff0e8] text-[#b33f20]" };
@@ -50,6 +52,14 @@ export function Empty({ children }: { children: React.ReactNode }) {
 
 export function Loading({ label = "Loading..." }: { label?: string }) {
   return <p className="py-14 text-center text-sm text-[#927b6d]">{label}</p>;
+}
+
+/** A list filter kept in the URL (?show=...), so dashboard tiles can link straight to e.g. the admins or the rejected recipes. */
+export function useUrlFilter<T extends string>(allowed: readonly T[], fallback: T): [T, (value: T) => void] {
+  const params = useSearchParams(); const router = useRouter(); const pathname = usePathname();
+  const show = params.get("show") as T | null;
+  const value = show && allowed.includes(show) ? show : fallback;
+  return [value, (next) => router.replace(next === fallback ? pathname : `${pathname}?show=${next}`, { scroll: false })];
 }
 
 export function Tabs<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string; count?: number }[]; onChange: (value: T) => void }) {

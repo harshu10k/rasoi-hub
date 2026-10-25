@@ -6,13 +6,13 @@ import { adminRecipeSelect, deleteRecipe, reviewRecipe, setFeatured, type AdminR
 import type { RecipeStatus } from "@/lib/types";
 import { refreshPendingBadge } from "@/components/admin/admin-shell";
 import { RecipeReviewCard } from "@/components/admin/recipe-review";
-import { Empty, ErrorBox, Loading, PageHeader, Tabs, Toast, useAction } from "@/components/admin/ui";
+import { Empty, ErrorBox, Loading, PageHeader, Tabs, Toast, useAction, useUrlFilter } from "@/components/admin/ui";
 
-type Filter = "all" | RecipeStatus | "featured";
+const filters = ["all", "approved", "pending", "rejected", "featured"] as const;
 
 export function AdminRecipes() {
   const [recipes, setRecipes] = useState<AdminRecipe[]>(); const [loadError, setLoadError] = useState("");
-  const [filter, setFilter] = useState<Filter>("all"); const [query, setQuery] = useState("");
+  const [filter, setFilter] = useUrlFilter(filters, "all"); const [query, setQuery] = useState("");
   const { error, toast, busyId, run } = useAction();
   const load = useCallback(async () => {
     const { data, error } = await createClient().from("recipes").select(adminRecipeSelect).order("created_at", { ascending: false });

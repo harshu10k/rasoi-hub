@@ -1,3 +1,4 @@
+import https from "node:https";
 import { expect, test, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -80,3 +81,22 @@ export async function login(page: Page, account: Account, next = "/") {
 
 /** Next.js keeps visited pages mounted but hidden for back navigation; only look at what the user can see. */
 export const visible = (page: Page, selector: string) => page.locator(`${selector}:visible`);
+
+/**
+ * Runs SQL as the project owner through the Supabase Management API, for the few test chores the app itself
+ * (rightly) can't do. Needs a short-lived SUPABASE_ACCESS_TOKEN in .env.local. Uses node:https rather than fetch:
+ * fetch's pooled socket left open at exit crashes Node on Windows when this runs from the global teardown.
+ */
+export function runSql(query: string): Promise<unknown> {
+  const token = process.env.SUPABASE_ACCESS_TOKEN; const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0];
+  if (!token) return Promise.reject(new Error("Set SUPABASE_ACCESS_TOKEN in .env.local (see tests/README.md)."));
+  return new Promise((resolve, reject) => {
+    const request = https.request(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: "POST", agent: false, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    }, (response) => {
+      let body = ""; response.setEncoding("utf8"); response.on("data", (chunk) => { body += chunk; });
+      response.on("end", () => (response.statusCode ?? 500) < 300 ? resolve(JSON.parse(body || "null")) : reject(new Error(`SQL failed: ${response.statusCode} ${body}`)));
+    });
+    request.on("error", reject); request.end(JSON.stringify({ query }));
+  });
+}

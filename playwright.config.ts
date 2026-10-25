@@ -9,6 +9,7 @@ const baseURL = process.env.RASOI_BASE_URL ?? "http://localhost:3000";
 
 export default defineConfig({
   testDir: "tests",
+  globalTeardown: "./tests/global-teardown.ts",
   // Tests share two real accounts and the database's spam limits, so run them one at a time.
   workers: 1,
   fullyParallel: false,

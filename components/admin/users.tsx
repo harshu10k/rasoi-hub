@@ -6,14 +6,15 @@ import { Ban, ChevronDown, ShieldCheck, ShieldOff, UserCheck } from "lucide-reac
 import { createClient } from "@/lib/supabase/client";
 import { useAccount } from "@/lib/account";
 import { adminRpc, formatDate, setBan, setRole, timeAgo, type AdminUser } from "@/lib/admin";
-import { Empty, ErrorBox, Loading, PageHeader, ReasonForm, RoleBadge, StatusBadge, Tabs, Toast, btn, useAction } from "@/components/admin/ui";
+import { Empty, ErrorBox, Loading, PageHeader, ReasonForm, RoleBadge, StatusBadge, Tabs, Toast, btn, useAction, useUrlFilter } from "@/components/admin/ui";
 import type { RecipeStatus } from "@/lib/types";
 
-type Filter = "all" | "cooks" | "admins" | "banned" | "unconfirmed";
+const filters = ["all", "active", "cooks", "admins", "banned", "unconfirmed"] as const;
+const isActive = (user: AdminUser) => !!user.last_sign_in_at && Date.now() - new Date(user.last_sign_in_at).getTime() < 7 * 86_400_000;
 
 export function AdminUsers() {
   const [users, setUsers] = useState<AdminUser[]>(); const [loadError, setLoadError] = useState("");
-  const [filter, setFilter] = useState<Filter>("all"); const [query, setQuery] = useState(""); const [me, setMe] = useState<string>();
+  const [filter, setFilter] = useUrlFilter(filters, "all"); const [query, setQuery] = useState(""); const [me, setMe] = useState<string>();
   const { role: myRole } = useAccount();
   const { error, toast, busyId, run } = useAction();
   const load = useCallback(async () => {
@@ -22,8 +23,8 @@ export function AdminUsers() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- fetches data; state is only set once the request resolves
   useEffect(() => { load(); createClient().auth.getUser().then(({ data }) => setMe(data.user?.id)); }, [load]);
 
-  const counts = useMemo(() => { const list = users ?? []; return { all: list.length, cooks: list.filter((u) => u.recipes > 0).length, admins: list.filter((u) => u.role !== "user").length, banned: list.filter((u) => u.is_banned).length, unconfirmed: list.filter((u) => !u.email_confirmed).length }; }, [users]);
-  const shown = (users ?? []).filter((user) => ({ all: true, cooks: user.recipes > 0, admins: user.role !== "user", banned: user.is_banned, unconfirmed: !user.email_confirmed })[filter]
+  const counts = useMemo(() => { const list = users ?? []; return { all: list.length, active: list.filter(isActive).length, cooks: list.filter((u) => u.recipes > 0).length, admins: list.filter((u) => u.role !== "user").length, banned: list.filter((u) => u.is_banned).length, unconfirmed: list.filter((u) => !u.email_confirmed).length }; }, [users]);
+  const shown = (users ?? []).filter((user) => ({ all: true, active: isActive(user), cooks: user.recipes > 0, admins: user.role !== "user", banned: user.is_banned, unconfirmed: !user.email_confirmed })[filter]
     && `${user.name ?? ""} ${user.email}`.toLowerCase().includes(query.trim().toLowerCase()));
   const patch = (id: string, changes: Partial<AdminUser>) => setUsers((list) => list?.map((item) => item.id === id ? { ...item, ...changes } : item));
 
@@ -31,7 +32,7 @@ export function AdminUsers() {
     <PageHeader title="Users" subtitle="Everyone who has signed up, what they've shared, and who can manage the site." onRefresh={load} />
     <ErrorBox message={error || loadError} />
     <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or email..." className="field mb-3" />
-    <Tabs value={filter} onChange={setFilter} options={[{ value: "all", label: "All", count: counts.all }, { value: "cooks", label: "Shared recipes", count: counts.cooks }, { value: "admins", label: "Admins", count: counts.admins }, { value: "banned", label: "Banned", count: counts.banned }, { value: "unconfirmed", label: "Email not confirmed", count: counts.unconfirmed }]} />
+    <Tabs value={filter} onChange={setFilter} options={[{ value: "all", label: "All", count: counts.all }, { value: "active", label: "Active this week", count: counts.active }, { value: "cooks", label: "Shared recipes", count: counts.cooks }, { value: "admins", label: "Admins", count: counts.admins }, { value: "banned", label: "Banned", count: counts.banned }, { value: "unconfirmed", label: "Email not confirmed", count: counts.unconfirmed }]} />
     {!users ? <Loading /> : shown.length === 0 ? <Empty>No users match.</Empty> :
       <div className="grid gap-3">{shown.map((user) => <UserCard key={user.id} user={user} isMe={user.id === me} iAmOwner={myRole === "owner"} busy={busyId === user.id}
         onRole={async (role) => { if (await run(user.id, () => setRole(user.id, role), role === "admin" ? `${user.name ?? user.email} is now an admin` : "Admin rights removed")) patch(user.id, { role }); }}

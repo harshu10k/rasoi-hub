@@ -3,7 +3,7 @@
 // Needs test accounts A and B (plain users) and C (admin) in .env.test.local. Creates "[test] " rows and removes them.
 import { expect, test } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { accountA, accountB, accountC, anonClient, cleanup, clientAs, createRecipe, login, needAccounts, recipeFields, TEST_PREFIX } from "./helpers";
+import { accountA, accountB, accountC, anonClient, cleanup, clientAs, createRecipe, login, needAccounts, recipeFields, runSql, TEST_PREFIX } from "./helpers";
 
 type Session = { client: SupabaseClient; userId: string };
 let a: Session; let b: Session; let c: Session;
@@ -169,6 +169,24 @@ test.describe("Admin pages", () => {
     await expect(page.getByRole("heading", { name: "This dish isn't on the menu." }).locator("visible=true")).toBeVisible();
     await expect(page.getByText("Everyone who has signed up")).toHaveCount(0);
   });
+  test("dashboard tiles open the matching list: admins, banned users, rejected recipes", async ({ page }) => {
+    const id = await createRecipe(a.client, a.userId, { title: `${TEST_PREFIX}Rejected ${Date.now()}` });
+    await c.client.rpc("admin_review_recipe", { p_recipe: id, p_status: "rejected", p_reason: "Blurry photo" });
+    await login(page, accountC!, "/admin");
+    await page.getByRole("link", { name: /^Admins/ }).locator("visible=true").click();
+    await expect(page).toHaveURL(/\/admin\/users\?show=admins/);
+    await expect(page.getByRole("button", { name: /^Admins/ }).locator("visible=true")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("article:visible").filter({ hasText: accountC!.email })).toHaveCount(1);
+    await expect(page.locator("article:visible").filter({ hasText: accountA!.email })).toHaveCount(0);
+    await page.goto("/admin");
+    await page.getByRole("link", { name: /^Rejected/ }).locator("visible=true").click();
+    await expect(page).toHaveURL(/\/admin\/recipes\?show=rejected/);
+    await expect(page.locator("article:visible").filter({ hasText: "Rejected" }).first()).toBeVisible();
+    await expect(page.locator("article:visible").filter({ hasText: "Pending" })).toHaveCount(0);
+    await page.goto("/admin");
+    await page.getByRole("link", { name: /^Banned/ }).locator("visible=true").click();
+    await expect(page).toHaveURL(/\/admin\/users\?show=banned/);
+  });
   test("an admin approves a pending recipe from Requests and it goes live", async ({ page }) => {
     const id = await createRecipe(a.client, a.userId, { title: `${TEST_PREFIX}Masala chai ${Date.now()}` });
     const title = (await a.client.from("recipes").select("title").eq("id", id).single()).data!.title as string;
@@ -203,13 +221,5 @@ test.describe("Admin pages", () => {
   });
 });
 
-/** Undoes a test promotion through the Supabase Management API (needs SUPABASE_ACCESS_TOKEN), since only the owner can demote. */
-async function resetRole(userId: string) {
-  const token = process.env.SUPABASE_ACCESS_TOKEN; const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0];
-  if (!token) throw new Error("Set SUPABASE_ACCESS_TOKEN to let the role test reset the promoted account.");
-  const response = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
-    method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ query: `update public.profiles set role = 'user' where id = '${userId}' and role = 'admin'` }),
-  });
-  if (!response.ok) throw new Error(`resetRole failed: ${response.status}`);
-}
+/** Undoes a test promotion (only the owner can demote through the app). */
+const resetRole = (userId: string) => runSql(`update public.profiles set role = 'user' where id = '${userId}' and role = 'admin'`);

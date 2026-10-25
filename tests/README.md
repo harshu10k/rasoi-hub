@@ -30,7 +30,7 @@ Each test is named after a way a real user could break the app ("Way to break it
    update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'you+rasoi-c@gmail.com');
    ```
 
-5. One admin test promotes B and must demote it again, which only the owner can do through the app. It resets B through the Supabase Management API, so put a short-lived access token in `.env.local` as `SUPABASE_ACCESS_TOKEN=...` while running it (and revoke it afterwards).
+5. One admin test promotes B and must demote it again, which only the owner can do through the app, and after every run the test admin's entries are removed from the activity log. Both go through the Supabase Management API, so put a short-lived access token in `.env.local` as `SUPABASE_ACCESS_TOKEN=...` while running the tests (and revoke it afterwards).
 
 Tests use your installed Google Chrome; no browser download is needed. Tests without accounts are skipped, not failed.
 
